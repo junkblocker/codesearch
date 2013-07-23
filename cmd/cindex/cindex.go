@@ -19,7 +19,8 @@ import (
 var usageMessage = `usage: cindex [-list] [-reset] [-zip] [path...]
 
 Cindex prepares the trigram index for use by csearch.  The index is the
-file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
+file named by $CSEARCHINDEX, or else $HOME/.csearchindex. The -indexpath FILE
+options uses specified FILE as the index path overriding these.
 
 The simplest invocation is
 
@@ -63,6 +64,7 @@ var (
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
 	checkFlag   = flag.Bool("check", false, "check index is well-formatted")
+	indexPath   = flag.String("indexpath", "", "specifies index path")
 	zipFlag     = flag.Bool("zip", false, "index content in zip files")
 	statsFlag   = flag.Bool("stats", false, "print index size statistics")
 )
@@ -72,8 +74,20 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
+	if *indexPath != "" {
+		if err := os.Setenv("CSEARCHINDEX", *indexPath) ; err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	if *listFlag {
-		ix := index.Open(index.File())
+		master := index.File()
+		if stat, err := os.Stat(master); err != nil || stat == nil {
+			log.Fatal("Index " + master + " is not accessible")
+		} else if stat.IsDir() || !stat.Mode().IsRegular() {
+			log.Fatal("Index " + master + " must point to an index file")
+		}
+		ix := index.Open(master)
 		if *checkFlag {
 			if err := ix.Check(); err != nil {
 				log.Fatal(err)
@@ -96,8 +110,18 @@ func main() {
 	}
 
 	if *resetFlag && flag.NArg() == 0 {
-		os.Remove(index.File())
-		return
+		master := index.File()
+		stat, err := os.Stat(master)
+		if err != nil {
+			// does not exist so nothing to do
+			return
+		}
+		if stat != nil && !stat.IsDir() && stat.Mode().IsRegular() {
+			os.Remove(master)
+			return
+		} else {
+			log.Fatal("Invalid index path " + master)
+		}
 	}
 	var roots []index.Path
 	if flag.NArg() == 0 {
@@ -118,9 +142,14 @@ func main() {
 	}
 
 	master := index.File()
-	if _, err := os.Stat(master); err != nil {
+	if stat, err := os.Stat(master); err != nil {
 		// Does not exist.
 		*resetFlag = true
+	} else {
+		if stat != nil && (stat.IsDir() || !stat.Mode().IsRegular()) {
+			log.Fatal("Invalid index path " + master)
+		}
+
 	}
 	file := master
 	if !*resetFlag {

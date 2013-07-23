@@ -26,10 +26,19 @@ import (
 )
 
 var (
+	indexPath   = flag.String("indexpath", "", "specifies index path")
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 )
 
 func main() {
+	flag.Parse()
+
+	if *indexPath != "" {
+		if err := os.Setenv("CSEARCHINDEX", *indexPath); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	http.HandleFunc("/", home)
 	http.Handle("/_static/", http.FileServer(http.FS(static)))
 	http.HandleFunc("/show/", show)
