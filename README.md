@@ -2,9 +2,20 @@
 
 ## To install this fork
 
-    go get -u github.com/junkblocker/codesearch/cmd/cindex
-    go get -u github.com/junkblocker/codesearch/cmd/csearch
-    go get -u github.com/junkblocker/codesearch/cmd/cgrep
+```
+    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/cindex
+    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/csearch
+    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/cgrep
+```
+
+or with newer versions of go.
+
+```
+    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/...
+```
+
+Note: **GOPROXY=direct** is needed here because otherwise Google codesearch
+gets installed incorrectly instead of this fork.
 
 ## Prebuilt binaries
 
@@ -12,11 +23,9 @@ New releases [https://github.com/junkblocker/codesearch/releases](https://github
 
 Old releases [https://github.com/junkblocker/codesearch-pre-github/releases](https://github.com/junkblocker/codesearch-pre-github/releases)
 
-
 ### Old fork pre-"Google on Github" days
 
 [https://github.com/junkblocker/codesearch-pre-github](https://github.com/junkblocker/codesearch-pre-github)
-
 
 ## Original Google codesearch README content
 
@@ -31,7 +40,7 @@ Old releases [https://github.com/junkblocker/codesearch-pre-github/releases](htt
 
     To install:
 
-	go get github.com/google/codesearch/cmd/...
+        go get github.com/google/codesearch/cmd/...
 
     Use "go get -u" to update an existing installation.
 
