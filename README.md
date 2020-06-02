@@ -2,20 +2,11 @@
 
 ## To install this fork
 
-```
-    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/cindex
-    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/csearch
-    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/cgrep
-```
+       go get github.com/junkblocker/codesearch/cmd/...
 
-or with newer versions of go.
-
-```
-    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/...
-```
-
-Note: **GOPROXY=direct** is needed here because otherwise Google codesearch
-gets installed incorrectly instead of this fork.
+Note: Set environment `GO111MODULE=auto` or leave it blank since that is the
+default to avoid the upstream google version from getting installed in some
+cases.
 
 ## Prebuilt binaries
 
