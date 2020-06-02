@@ -3,15 +3,15 @@
 ## To install this fork
 
 ```
-    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/cindex
-    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/csearch
-    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/cgrep
+    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/cindex
+    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/csearch
+    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/cgrep
 ```
 
 or with newer versions of go.
 
 ```
-    GOPROXY=direct go get -u github.com/junkblocker/codesearch/cmd/...
+    GOPROXY=direct go get github.com/junkblocker/codesearch/cmd/...
 ```
 
 Note: **GOPROXY=direct** is needed here because otherwise Google codesearch
