@@ -24,7 +24,8 @@ const (
 	DEFAULT_MAX_FILE_LENGTH             = 1 << 30
 	DEFAULT_MAX_LINE_LENGTH             = 2000
 	DEFAULT_MAX_TEXT_TRIGRAMS           = 30000
-	DEFAULT_MAX_INVALID_UTF8_PERCENTAGE = 0.1
+	DEFAULT_MAX_INVALID_UTF8_RATIO      = 0.1
+	DEFAULT_MAX_NULL_RATIO              = 0.1
 )
 
 var usageMessage = `usage: cindex [options] [path...]
@@ -49,6 +50,8 @@ Options:
                skip indexing a file if it has more than this number of trigrams (Default: %v)
   -maxinvalidutf8ratio RATIO
                skip indexing a file if it has more than this ratio of invalid UTF-8 sequences (Default: %v)
+  -max-null-ratio RATIO
+               skip indexing a file if it has more than this ratio of null bytes (Default: %v)
   -exclude FILE
                path to file containing a list of file patterns to exclude from indexing
   -filelist FILE
@@ -83,7 +86,7 @@ With no path arguments, cindex -reset removes the index.
 `
 
 func usage() {
-	fmt.Fprintf(os.Stderr, usageMessage, DEFAULT_MAX_FILE_LENGTH, DEFAULT_MAX_LINE_LENGTH, DEFAULT_MAX_TEXT_TRIGRAMS, DEFAULT_MAX_INVALID_UTF8_PERCENTAGE)
+	fmt.Fprintf(os.Stderr, usageMessage, DEFAULT_MAX_FILE_LENGTH, DEFAULT_MAX_LINE_LENGTH, DEFAULT_MAX_TEXT_TRIGRAMS, DEFAULT_MAX_INVALID_UTF8_RATIO, DEFAULT_MAX_NULL_RATIO)
 	os.Exit(2)
 }
 
@@ -107,7 +110,8 @@ var (
 	maxFileLen          = flag.Int64("maxfilelen", DEFAULT_MAX_FILE_LENGTH, "skip indexing a file if longer than this size in bytes")
 	maxLineLen          = flag.Int("maxlinelen", DEFAULT_MAX_LINE_LENGTH, "skip indexing a file if it has a line longer than this size in bytes")
 	maxTextTrigrams     = flag.Int("maxtrigrams", DEFAULT_MAX_TEXT_TRIGRAMS, "skip indexing a file if it has more than this number of trigrams")
-	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", DEFAULT_MAX_INVALID_UTF8_PERCENTAGE, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
+	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", DEFAULT_MAX_INVALID_UTF8_RATIO, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
+	maxNullRatio        = flag.Float64("max-null-ratio", DEFAULT_MAX_NULL_RATIO, "skip indexing a file if it has more than this ratio of null bytes")
 
 	excludePatterns = []string{
 		".csearchindex",
@@ -350,6 +354,7 @@ func main() {
 	ix.MaxLineLen = *maxLineLen
 	ix.MaxTextTrigrams = *maxTextTrigrams
 	ix.MaxInvalidUTF8Ratio = *maxInvalidUTF8Ratio
+	ix.MaxNullRatio = *maxNullRatio
 	ix.AddPaths(args)
 
 	walkChan := make(chan string)
