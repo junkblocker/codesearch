@@ -2,9 +2,8 @@
 
 ## To install this fork
 
-       GO111MODULE=auto go get -u github.com/junkblocker/codesearch/cmd/...
-
-Note: Set environment `GO111MODULE=auto` to avoid the upstream google version from getting installed in some cases.
+    cd /
+    GO111MODULE=on go get -u github.com/junkblocker/codesearch/cmd/...
 
 ## Prebuilt binaries
 
