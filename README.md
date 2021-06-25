@@ -2,14 +2,24 @@
 
 ## To install this fork
 
-    cd /
-    GO111MODULE=on go get -u github.com/junkblocker/codesearch/cmd/...
+### With Go 1.16 or newer
+
+``` shell
+cd /
+go install github.com/junkblocker/codesearch/cmd/...@latest
+```
+
+### With Go 1.15 or older
+
+``` shell
+cd /
+GO111MODULE=on go get -u github.com/junkblocker/codesearch/cmd/...
+```
 
 ## Prebuilt binaries
 
-New releases [https://github.com/junkblocker/codesearch/releases](https://github.com/junkblocker/codesearch/releases)
-
-Old releases [https://github.com/junkblocker/codesearch-pre-github/releases](https://github.com/junkblocker/codesearch-pre-github/releases)
+* New releases [https://github.com/junkblocker/codesearch/releases](https://github.com/junkblocker/codesearch/releases)
+* Old releases [https://github.com/junkblocker/codesearch-pre-github/releases](https://github.com/junkblocker/codesearch-pre-github/releases)
 
 ### Old fork pre-"Google on Github" days
 
@@ -17,21 +27,23 @@ Old releases [https://github.com/junkblocker/codesearch-pre-github/releases](htt
 
 ## Original Google codesearch README content
 
-    Code Search is a tool for indexing and then performing
-    regular expression searches over large bodies of source code.
-    It is a set of command-line programs written in Go.
-    Binary downloads are available for those who do not have Go installed.
-    See https://github.com/google/codesearch.
+``` text
+Code Search is a tool for indexing and then performing
+regular expression searches over large bodies of source code.
+It is a set of command-line programs written in Go.
+Binary downloads are available for those who do not have Go installed.
+See https://github.com/google/codesearch.
 
-    For background and an overview of the commands,
-    see http://swtch.com/~rsc/regexp/regexp4.html.
+For background and an overview of the commands,
+see http://swtch.com/~rsc/regexp/regexp4.html.
 
-    To install:
+To install:
 
-        go get github.com/google/codesearch/cmd/...
+    go get github.com/google/codesearch/cmd/...
 
-    Use "go get -u" to update an existing installation.
+Use "go get -u" to update an existing installation.
 
-    Russ Cox
-    rsc@swtch.com
-    June 2015
+Russ Cox
+rsc@swtch.com
+June 2015
+```
