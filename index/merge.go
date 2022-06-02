@@ -232,7 +232,9 @@ func Merge(dst, src1, src2 string) {
 	ix3.flush()
 	ix3.finish().Close()
 
+	nameIndexFile.file.Close()
 	os.Remove(nameIndexFile.name)
+	w.postIndexFile.file.Close()
 	os.Remove(w.postIndexFile.name)
 }
 

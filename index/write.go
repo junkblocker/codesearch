@@ -250,11 +250,15 @@ func (ix *IndexWriter) Flush() {
 	}
 	ix.main.writeString(trailerMagic)
 
+	ix.nameData.file.Close()
 	os.Remove(ix.nameData.name)
 	for _, f := range ix.postFile {
+		f.Close()
 		os.Remove(f.Name())
 	}
+	ix.nameIndex.file.Close()
 	os.Remove(ix.nameIndex.name)
+	ix.postIndex.file.Close()
 	os.Remove(ix.postIndex.name)
 
 	log.Printf("%d data bytes, %d index bytes", ix.totalBytes, ix.main.offset())
@@ -355,6 +359,9 @@ func (ix *IndexWriter) mergePost(out *bufWriter) {
 			break
 		}
 	}
+	for _, mappedData := range h.mappedData {
+		unmmapFile(mappedData)
+	}
 }
 
 // A postChunk represents a chunk of post entries flushed to disk or
@@ -368,13 +375,17 @@ const postBuf = 4096
 
 // A postHeap is a heap (priority queue) of postChunks.
 type postHeap struct {
-	ch []*postChunk
+	ch         []*postChunk
+	mappedData []*mmapData
 }
 
 func (h *postHeap) addFile(f *os.File) {
-	data := mmapFile(f).d
+	mappedData := mmapFile(f)
+	data := mappedData.d
 	m := (*[npost]postEntry)(unsafe.Pointer(&data[0]))[:len(data)/8]
 	h.addMem(m)
+	// Make sure we close the mmap memory once we're done with it
+	h.mappedData = append(h.mappedData, (&mappedData))
 }
 
 func (h *postHeap) addMem(x []postEntry) {
