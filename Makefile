@@ -12,9 +12,9 @@ all: lint vet test build install ## lint test and install locally
 	@echo "Run $(MAKE) publish to publish to github"
 
 .PHONY: release
-release: tagcheck
+release: tagcheck deps
 	@echo "Building $(RELEASE)"
-	mkdir -p /tmp/goxc-tmp-intall && cd /tmp/goxc-tmp-intall && go get github.com/laher/goxc
+	mkdir -p /tmp/goxc-tmp-intall && cd /tmp/goxc-tmp-intall && go install github.com/laher/goxc@latest
 	rm -rf /tmp/goxc-tmp-intall
 	goxc -bc="!plan9" -arch='amd64' -pv="$(RELEASE)" -d="$(BUILDS_DIR)" -include=LICENSE -os='darwin freebsd linux windows' go-vet go-test xc archive-zip archive-tar-gz
 
@@ -26,17 +26,23 @@ tagcheck:
 	fi
 
 .PHONY: deps
-deps: tagcheck
+deps:
 	@if [ -z "$(GITHUB_TOKEN)" ]; then \
 		echo "GITHUB_TOKEN is not set in the environment" ; \
 		fail ; \
 	fi
-	mkdir -p /tmp/ghr-tmp-install && cd /tmp/ghr-tmp-install && go get github.com/laher/goxc
-	rm -rf /tmp/ghr-tmp-install
-	go get -u github.com/tcnksm/ghr
+	@if [ -z "$(command -v goxc)" ]; then \
+		cd / && go install github.com/laher/goxc@latest ; \
+	fi
+	@if [ -z "$(command -v ghr)" ]; then \
+		cd / && go install github.com/tcnksm/ghr@latest ; \
+	fi
+	@if [ -z "$(command -v golangci-lint)" ]; then \
+		cd / && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.2 ; \
+	fi
 
 .PHONY: publish
-publish: deps ## Publish a draft release to github
+publish: release ## Publish a draft release to github
 	@echo "Publishing $(RELEASE) draft avoiding overwriting any older existing $(RELEASE) release"
 	@echo "Use $(MAKE) publish-force to force publish a non-draft $(RELEASE) release"
 	@ghr -soft -draft "$(RELEASE)" "$(BUILDS_DIR)/$(RELEASE)/"
@@ -52,7 +58,7 @@ build:
 
 .PHONY: lint
 lint:
-	@golint ./...
+	@golangci-lint run --disable=unused,deadcode,ineffassign,gosimple,errcheck,structcheck,varcheck,staticcheck ./...
 
 .PHONY: vet
 vet:

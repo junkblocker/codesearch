@@ -1,31 +1,25 @@
 # A fork of Google Code Search to  make it a more generally usable tool
 
-## To install this fork
+## Prebuilt binaries for this fork
 
-### With Go 1.16 or newer
+* New releases [https://github.com/junkblocker/codesearch/releases](https://github.com/junkblocker/codesearch/releases)
+
+## Installing this fork from source
+
+With Go 1.16 or newer
 
 ``` shell
 cd /
 go install github.com/junkblocker/codesearch/cmd/...@latest
 ```
 
-### With Go 1.15 or older
+## Historical content
 
-``` shell
-cd /
-GO111MODULE=on go get -u github.com/junkblocker/codesearch/cmd/...
-```
-
-## Prebuilt binaries
-
-* New releases [https://github.com/junkblocker/codesearch/releases](https://github.com/junkblocker/codesearch/releases)
 * Old releases [https://github.com/junkblocker/codesearch-pre-github/releases](https://github.com/junkblocker/codesearch-pre-github/releases)
 
-### Old fork pre-"Google on Github" days
+* Old fork pre-"Google on Github" days [https://github.com/junkblocker/codesearch-pre-github](https://github.com/junkblocker/codesearch-pre-github)
 
-[https://github.com/junkblocker/codesearch-pre-github](https://github.com/junkblocker/codesearch-pre-github)
-
-## Original Google codesearch README content
+* Original Google codesearch README extract
 
 ``` text
 Code Search is a tool for indexing and then performing
