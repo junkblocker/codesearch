@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013-2014 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -115,7 +115,7 @@ var (
 )
 
 func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
-	filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 		if basedir, elem := filepath.Split(path); elem != "" {
 			exclude := false
 			for _, pattern := range excludePatterns {
@@ -215,6 +215,9 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 		}
 		return nil
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
@@ -248,7 +251,9 @@ func main() {
 			log.Fatal(err)
 		}
 		defer f.Close()
-		pprof.StartCPUProfile(f)
+		if perr := pprof.StartCPUProfile(f); perr != nil {
+			log.Fatal(perr)
+		}
 		defer pprof.StopCPUProfile()
 	}
 
@@ -305,9 +310,7 @@ func main() {
 
 	if len(args) == 0 {
 		ix := index.Open(index.File())
-		for _, arg := range ix.Paths() {
-			args = append(args, arg)
-		}
+		args = append(args, ix.Paths()...)
 		ix.Close()
 	}
 
@@ -387,5 +390,4 @@ func main() {
 		}
 	}
 	log.Printf("done")
-	return
 }

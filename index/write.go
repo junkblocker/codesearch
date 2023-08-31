@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -44,7 +44,6 @@ type IndexWriter struct {
 	paths []string
 
 	nameData   *bufWriter // temp file holding list of names
-	nameLen    uint32     // number of bytes written to nameData
 	nameIndex  *bufWriter // temp file holding name index
 	numName    int        // number of names written
 	totalBytes int64
@@ -312,7 +311,10 @@ func (ix *IndexWriter) flushPost() {
 	}
 
 	ix.post = ix.post[:0]
-	w.Seek(0, 0)
+	_, err = w.Seek(0, 0)
+	if err != nil {
+		log.Fatal(err)
+	}
 	ix.postFile = append(ix.postFile, w)
 }
 
@@ -367,11 +369,11 @@ func (ix *IndexWriter) mergePost(out *bufWriter) {
 // A postChunk represents a chunk of post entries flushed to disk or
 // still in memory.
 type postChunk struct {
-	e postEntry   // next entry
-	m []postEntry // remaining entries after e
+	// next entry
+	head postEntry
+	// remaining entries after head
+	tail []postEntry
 }
-
-const postBuf = 4096
 
 // A postHeap is a heap (priority queue) of postChunks.
 type postHeap struct {
@@ -381,7 +383,7 @@ type postHeap struct {
 
 func (h *postHeap) addFile(f *os.File) {
 	mappedData := mmapFile(f)
-	data := mappedData.d
+	data := mappedData.data
 	m := (*[npost]postEntry)(unsafe.Pointer(&data[0]))[:len(data)/8]
 	h.addMem(m)
 	// Make sure we close the mmap memory once we're done with it
@@ -389,39 +391,17 @@ func (h *postHeap) addFile(f *os.File) {
 }
 
 func (h *postHeap) addMem(x []postEntry) {
-	h.add(&postChunk{m: x})
-}
-
-// step reads the next entry from ch and saves it in ch.e.
-// It returns false if ch is over.
-func (h *postHeap) step(ch *postChunk) bool {
-	old := ch.e
-	m := ch.m
-	if len(m) == 0 {
-		return false
-	}
-	ch.e = postEntry(m[0])
-	m = m[1:]
-	ch.m = m
-	if old >= ch.e {
-		panic("bad sort")
-	}
-	return true
+	h.add(&postChunk{tail: x})
 }
 
 // add adds the chunk to the postHeap.
 // All adds must be called before the first call to next.
 func (h *postHeap) add(ch *postChunk) {
-	if len(ch.m) > 0 {
-		ch.e = ch.m[0]
-		ch.m = ch.m[1:]
+	if len(ch.tail) > 0 {
+		ch.head = ch.tail[0]
+		ch.tail = ch.tail[1:]
 		h.push(ch)
 	}
-}
-
-// empty reports whether the postHeap is empty.
-func (h *postHeap) empty() bool {
-	return len(h.ch) == 0
 }
 
 // next returns the next entry from the postHeap.
@@ -431,13 +411,13 @@ func (h *postHeap) next() postEntry {
 		return makePostEntry(1<<24-1, 0)
 	}
 	ch := h.ch[0]
-	e := ch.e
-	m := ch.m
+	e := ch.head
+	m := ch.tail
 	if len(m) == 0 {
 		h.pop()
 	} else {
-		ch.e = m[0]
-		ch.m = m[1:]
+		ch.head = m[0]
+		ch.tail = m[1:]
 		h.siftDown(0)
 	}
 	return e
@@ -470,10 +450,10 @@ func (h *postHeap) siftDown(i int) {
 			break
 		}
 		j := j1
-		if j2 := j1 + 1; j2 < len(ch) && ch[j1].e >= ch[j2].e {
+		if j2 := j1 + 1; j2 < len(ch) && ch[j1].head >= ch[j2].head {
 			j = j2
 		}
-		if ch[i].e < ch[j].e {
+		if ch[i].head < ch[j].head {
 			break
 		}
 		ch[i], ch[j] = ch[j], ch[i]
@@ -485,7 +465,7 @@ func (h *postHeap) siftUp(j int) {
 	ch := h.ch
 	for {
 		i := (j - 1) / 2
-		if i == j || ch[i].e < ch[j].e {
+		if i == j || ch[i].head < ch[j].head {
 			break
 		}
 		ch[i], ch[j] = ch[j], ch[i]
@@ -498,7 +478,6 @@ type bufWriter struct {
 	name string
 	file *os.File
 	buf  []byte
-	tmp  [8]byte
 }
 
 // bufCreate creates a new file with the given name and returns a
@@ -561,10 +540,13 @@ func (b *bufWriter) writeString(s string) {
 
 // offset returns the current write offset.
 func (b *bufWriter) offset() uint32 {
-	off, _ := b.file.Seek(0, 1)
+	off, err := b.file.Seek(0, 1)
+	if err != nil {
+		log.Fatal(err)
+	}
 	off += int64(len(b.buf))
 	if int64(uint32(off)) != off {
-		log.Fatalf("index is larger than 4GB")
+		log.Fatal("index is larger than 4GB")
 	}
 	return uint32(off)
 }

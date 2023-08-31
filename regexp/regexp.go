@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -17,9 +17,9 @@ func bug() {
 // Regexp is the representation of a compiled regular expression.
 // A Regexp is NOT SAFE for concurrent use by multiple goroutines.
 type Regexp struct {
-	Syntax *syntax.Regexp
-	expr   string // original expression
-	m      matcher
+	Syntax  *syntax.Regexp
+	expr    string // original expression
+	matcher matcher
 }
 
 // String returns the source text used to compile the regular expression.
@@ -46,16 +46,16 @@ func Compile(expr string) (*Regexp, error) {
 		Syntax: re,
 		expr:   expr,
 	}
-	if err := r.m.init(prog); err != nil {
+	if err := r.matcher.init(prog); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-func (r *Regexp) Match(b []byte, beginText, endText bool) (end int) {
-	return r.m.match(b, beginText, endText)
+func (re *Regexp) Match(b []byte, beginText, endText bool) (end int) {
+	return re.matcher.match(b, beginText, endText)
 }
 
-func (r *Regexp) MatchString(s string, beginText, endText bool) (end int) {
-	return r.m.matchString(s, beginText, endText)
+func (re *Regexp) MatchString(s string, beginText, endText bool) (end int) {
+	return re.matcher.matchString(s, beginText, endText)
 }

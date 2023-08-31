@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013-2014 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -98,10 +98,10 @@ const postEntrySize = 3 + 4 + 4
 
 func Open(file string) *Index {
 	mm := mmap(file)
-	if len(mm.d) < 4*4+len(trailerMagic) || string(mm.d[len(mm.d)-len(trailerMagic):]) != trailerMagic {
+	if len(mm.data) < 4*4+len(trailerMagic) || string(mm.data[len(mm.data)-len(trailerMagic):]) != trailerMagic {
 		corrupt()
 	}
-	n := uint32(len(mm.d) - len(trailerMagic) - 5*4)
+	n := uint32(len(mm.data) - len(trailerMagic) - 5*4)
 	ix := &Index{data: mm}
 	ix.pathData = ix.uint32(n)
 	ix.nameData = ix.uint32(n + 4)
@@ -117,27 +117,18 @@ func Open(file string) *Index {
 // If n >= 0, the slice must have length at least n and is truncated to length n.
 func (ix *Index) slice(off uint32, n int) []byte {
 	o := int(off)
-	if uint32(o) != off || n >= 0 && o+n > len(ix.data.d) {
+	if uint32(o) != off || n >= 0 && o+n > len(ix.data.data) {
 		corrupt()
 	}
 	if n < 0 {
-		return ix.data.d[o:]
+		return ix.data.data[o:]
 	}
-	return ix.data.d[o : o+n]
+	return ix.data.data[o : o+n]
 }
 
 // uint32 returns the uint32 value at the given offset in the index data.
 func (ix *Index) uint32(off uint32) uint32 {
 	return binary.BigEndian.Uint32(ix.slice(off, 4))
-}
-
-// uvarint returns the varint value at the given offset in the index data.
-func (ix *Index) uvarint(off uint32) uint32 {
-	v, n := binary.Uvarint(ix.slice(off, -1))
-	if n <= 0 {
-		corrupt()
-	}
-	return uint32(v)
 }
 
 // Paths returns the list of indexed paths.
@@ -184,17 +175,6 @@ func (ix *Index) listAt(off uint32) (trigram, count, offset uint32) {
 	return
 }
 
-func (ix *Index) dumpPosting() {
-	d := ix.slice(ix.postIndex, postEntrySize*ix.numPost)
-	for i := 0; i < ix.numPost; i++ {
-		j := i * postEntrySize
-		t := uint32(d[j])<<16 | uint32(d[j+1])<<8 | uint32(d[j+2])
-		count := int(binary.BigEndian.Uint32(d[j+3:]))
-		offset := binary.BigEndian.Uint32(d[j+3+4:])
-		log.Printf("%#x: %d at %d", t, count, offset)
-	}
-}
-
 func (ix *Index) findList(trigram uint32) (count int, offset uint32) {
 	// binary search
 	d := ix.slice(ix.postIndex, postEntrySize*ix.numPost)
@@ -221,7 +201,7 @@ type postReader struct {
 	count    int
 	offset   uint32
 	fileid   uint32
-	d        []byte
+	data     []byte
 	restrict []uint32
 }
 
@@ -234,7 +214,7 @@ func (r *postReader) init(ix *Index, trigram uint32, restrict []uint32) {
 	r.count = count
 	r.offset = offset
 	r.fileid = ^uint32(0)
-	r.d = ix.slice(ix.postData+offset+3, -1)
+	r.data = ix.slice(ix.postData+offset+3, -1)
 	r.restrict = restrict
 }
 
@@ -245,12 +225,12 @@ func (r *postReader) max() int {
 func (r *postReader) next() bool {
 	for r.count > 0 {
 		r.count--
-		delta64, n := binary.Uvarint(r.d)
+		delta64, n := binary.Uvarint(r.data)
 		delta := uint32(delta64)
 		if n <= 0 || delta == 0 {
 			corrupt()
 		}
-		r.d = r.d[n:]
+		r.data = r.data[n:]
 		r.fileid += delta
 		if r.restrict != nil {
 			i := 0
@@ -265,7 +245,7 @@ func (r *postReader) next() bool {
 		return true
 	}
 	// list should end with terminating 0 delta
-	if r.d != nil && (len(r.d) == 0 || r.d[0] != 0) {
+	if r.data != nil && (len(r.data) == 0 || r.data[0] != 0) {
 		corrupt()
 	}
 	r.fileid = ^uint32(0)
@@ -415,9 +395,8 @@ func corrupt() {
 
 // An mmapData is mmap'ed read-only data from a file.
 type mmapData struct {
-	f *os.File
-	d []byte
-	h uintptr
+	f    *os.File
+	data []byte
 }
 
 // mmap maps the given file into memory.

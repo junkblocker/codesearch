@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -51,28 +51,28 @@ func cleanClass(rp *[]rune) []rune {
 }
 
 // appendRange returns the result of appending the range lo-hi to the class r.
-func appendRange(r []rune, lo, hi rune) []rune {
+func appendRange(runes []rune, lo, hi rune) []rune {
 	// Expand last range or next to last range if it overlaps or abuts.
 	// Checking two ranges helps when appending case-folded
 	// alphabets, so that one range can be expanding A-Z and the
 	// other expanding a-z.
-	n := len(r)
+	n := len(runes)
 	for i := 2; i <= 4; i += 2 { // twice, using i=2, i=4
 		if n >= i {
-			rlo, rhi := r[n-i], r[n-i+1]
+			rlo, rhi := runes[n-i], runes[n-i+1]
 			if lo <= rhi+1 && rlo <= hi+1 {
 				if lo < rlo {
-					r[n-i] = lo
+					runes[n-i] = lo
 				}
 				if hi > rhi {
-					r[n-i+1] = hi
+					runes[n-i+1] = hi
 				}
-				return r
+				return runes
 			}
 		}
 	}
 
-	return append(r, lo, hi)
+	return append(runes, lo, hi)
 }
 
 const (
@@ -84,37 +84,37 @@ const (
 
 // appendFoldedRange returns the result of appending the range lo-hi
 // and its case folding-equivalent runes to the class r.
-func appendFoldedRange(r []rune, lo, hi rune) []rune {
+func appendFoldedRange(runes []rune, lo, hi rune) []rune {
 	// Optimizations.
 	if lo <= minFold && hi >= maxFold {
 		// Range is full: folding can't add more.
-		return appendRange(r, lo, hi)
+		return appendRange(runes, lo, hi)
 	}
 	if hi < minFold || lo > maxFold {
 		// Range is outside folding possibilities.
-		return appendRange(r, lo, hi)
+		return appendRange(runes, lo, hi)
 	}
 	if lo < minFold {
 		// [lo, minFold-1] needs no folding.
-		r = appendRange(r, lo, minFold-1)
+		runes = appendRange(runes, lo, minFold-1)
 		lo = minFold
 	}
 	if hi > maxFold {
 		// [maxFold+1, hi] needs no folding.
-		r = appendRange(r, maxFold+1, hi)
+		runes = appendRange(runes, maxFold+1, hi)
 		hi = maxFold
 	}
 
 	// Brute force.  Depend on appendRange to coalesce ranges on the fly.
 	for c := lo; c <= hi; c++ {
-		r = appendRange(r, c, c)
+		runes = appendRange(runes, c, c)
 		f := unicode.SimpleFold(c)
 		for f != c {
-			r = appendRange(r, f, f)
+			runes = appendRange(runes, f, f)
 			f = unicode.SimpleFold(f)
 		}
 	}
-	return r
+	return runes
 }
 
 // ranges implements sort.Interface on a []rune.
@@ -155,7 +155,7 @@ func instString(i *syntax.Inst) string {
 	return b.String()
 }
 
-func bw(b *bytes.Buffer, args ...string) {
+func bufWrite(b *bytes.Buffer, args ...string) {
 	for _, s := range args {
 		b.WriteString(s)
 	}
@@ -171,9 +171,9 @@ func dumpProg(b *bytes.Buffer, p *syntax.Prog) {
 		if j == p.Start {
 			pc += "*"
 		}
-		bw(b, pc, "\t")
+		bufWrite(b, pc, "\t")
 		dumpInst(b, i)
-		bw(b, "\n")
+		bufWrite(b, "\n")
 	}
 }
 
@@ -184,42 +184,42 @@ func u32(i uint32) string {
 func dumpInst(b *bytes.Buffer, i *syntax.Inst) {
 	switch i.Op {
 	case syntax.InstAlt:
-		bw(b, "alt -> ", u32(i.Out), ", ", u32(i.Arg))
+		bufWrite(b, "alt -> ", u32(i.Out), ", ", u32(i.Arg))
 	case syntax.InstAltMatch:
-		bw(b, "altmatch -> ", u32(i.Out), ", ", u32(i.Arg))
+		bufWrite(b, "altmatch -> ", u32(i.Out), ", ", u32(i.Arg))
 	case syntax.InstCapture:
-		bw(b, "cap ", u32(i.Arg), " -> ", u32(i.Out))
+		bufWrite(b, "cap ", u32(i.Arg), " -> ", u32(i.Out))
 	case syntax.InstEmptyWidth:
-		bw(b, "empty ", u32(i.Arg), " -> ", u32(i.Out))
+		bufWrite(b, "empty ", u32(i.Arg), " -> ", u32(i.Out))
 	case syntax.InstMatch:
-		bw(b, "match")
+		bufWrite(b, "match")
 	case syntax.InstFail:
-		bw(b, "fail")
+		bufWrite(b, "fail")
 	case syntax.InstNop:
-		bw(b, "nop -> ", u32(i.Out))
+		bufWrite(b, "nop -> ", u32(i.Out))
 	case instByteRange:
 		fmt.Fprintf(b, "byte %02x-%02x", (i.Arg>>8)&0xFF, i.Arg&0xFF)
 		if i.Arg&argFold != 0 {
-			bw(b, "/i")
+			bufWrite(b, "/i")
 		}
-		bw(b, " -> ", u32(i.Out))
+		bufWrite(b, " -> ", u32(i.Out))
 
 	// Should not happen
 	case syntax.InstRune:
 		if i.Rune == nil {
 			// shouldn't happen
-			bw(b, "rune <nil>")
+			bufWrite(b, "rune <nil>")
 		}
-		bw(b, "rune ", strconv.QuoteToASCII(string(i.Rune)))
+		bufWrite(b, "rune ", strconv.QuoteToASCII(string(i.Rune)))
 		if syntax.Flags(i.Arg)&syntax.FoldCase != 0 {
-			bw(b, "/i")
+			bufWrite(b, "/i")
 		}
-		bw(b, " -> ", u32(i.Out))
+		bufWrite(b, " -> ", u32(i.Out))
 	case syntax.InstRune1:
-		bw(b, "rune1 ", strconv.QuoteToASCII(string(i.Rune)), " -> ", u32(i.Out))
+		bufWrite(b, "rune1 ", strconv.QuoteToASCII(string(i.Rune)), " -> ", u32(i.Out))
 	case syntax.InstRuneAny:
-		bw(b, "any -> ", u32(i.Out))
+		bufWrite(b, "any -> ", u32(i.Out))
 	case syntax.InstRuneAnyNotNL:
-		bw(b, "anynotnl -> ", u32(i.Out))
+		bufWrite(b, "anynotnl -> ", u32(i.Out))
 	}
 }

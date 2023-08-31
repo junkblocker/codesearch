@@ -37,9 +37,6 @@ deps:
 	@if [ -z "$(command -v ghr)" ]; then \
 		cd / && go install github.com/tcnksm/ghr@latest ; \
 	fi
-	@if [ -z "$(command -v golangci-lint)" ]; then \
-		cd / && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.2 ; \
-	fi
 
 .PHONY: publish
 publish: release ## Publish a draft release to github
@@ -58,6 +55,9 @@ build:
 
 .PHONY: lint
 lint:
+	@if [ -z "$(command -v golangci-lint)" ]; then \
+		cd / && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2 ; \
+	fi
 	@golangci-lint run --disable=unused,deadcode,ineffassign,gosimple,errcheck,structcheck,varcheck,staticcheck ./...
 
 .PHONY: vet
