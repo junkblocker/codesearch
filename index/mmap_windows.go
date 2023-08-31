@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -39,7 +39,7 @@ func mmapFile(f *os.File) mmapData {
 }
 
 func unmmapFile(mm *mmapData) {
-	err := syscall.UnmapViewOfFile(uintptr(unsafe.Pointer(&mm.d[0])))
+	err := syscall.UnmapViewOfFile(uintptr(unsafe.Pointer(&mm.data[0])))
 	if err != nil {
 		log.Fatal(err)
 	}

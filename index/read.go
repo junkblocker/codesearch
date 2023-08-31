@@ -397,6 +397,7 @@ func corrupt() {
 type mmapData struct {
 	f    *os.File
 	data []byte
+	h    uintptr
 }
 
 // mmap maps the given file into memory.

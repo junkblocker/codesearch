@@ -38,7 +38,7 @@ func mmapFile(f *os.File) mmapData {
 	if err != nil {
 		log.Fatalf("mmap %s: %v", f.Name(), err)
 	}
-	return mmapData{f, data[:n]}
+	return mmapData{f, data[:n], 0}
 }
 
 func unmmapFile(mm *mmapData) {
