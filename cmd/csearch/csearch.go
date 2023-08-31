@@ -7,11 +7,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
+	"strings"
+	"sync"
 
 	"github.com/junkblocker/codesearch/index"
 	"github.com/junkblocker/codesearch/regexp"
@@ -39,6 +44,10 @@ Options:
                use specified FILE as the index path. Overrides $CSEARCHINDEX.
   -verbose     print extra information
   -brute       brute force - search all files in index
+  -all         brute force - search all files even if they are not in the index
+  -exclude FILE
+               path to file containing a list of file patterns to exclude from search
+               (Only relevant for -all option)
   -cpuprofile FILE
                write CPU profile to FILE
 
@@ -67,17 +76,25 @@ func usage() {
 }
 
 var (
-	fFlag           = flag.String("f", "", "search only files with names matching this regexp")
-	iFlag           = flag.Bool("i", false, "case-insensitive search")
-	verboseFlag     = flag.Bool("verbose", false, "print extra information")
-	bruteFlag       = flag.Bool("brute", false, "brute force - search all files in index")
-	cpuProfile      = flag.String("cpuprofile", "", "write cpu profile to this file")
-	indexPath       = flag.String("indexpath", "", "specifies index path")
-	maxCount        = flag.Int64("m", 0, "specified maximum number of search results")
-	maxCountPerFile = flag.Int64("M", 0, "specified maximum number of search results per file")
+	fFlag                = flag.String("f", "", "search only files with names matching this regexp")
+	iFlag                = flag.Bool("i", false, "case-insensitive search")
+	verboseFlag          = flag.Bool("verbose", false, "print extra information")
+	bruteFlag            = flag.Bool("brute", false, "brute force - search all files in index")
+	allFilesFlag         = flag.Bool("all", false, "search all files in indexed paths even if they are not in the index")
+	cpuProfile           = flag.String("cpuprofile", "", "write cpu profile to this file")
+	exclude              = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from searching in -all mode")
+	indexPath            = flag.String("indexpath", "", "specifies index path")
+	maxCount             = flag.Int64("m", 0, "specified maximum number of search results")
+	maxCountPerFile      = flag.Int64("M", 0, "specified maximum number of search results per file")
+	noFollowSymlinksFlag = flag.Bool("no-follow-symlinks", false, "do not follow symlinked files and directories")
 
 	matches bool
+
+	excludePatterns = []string{}
 )
+
+var seen = make(map[string]bool)
+var lock = sync.RWMutex{}
 
 func Main() {
 	g := regexp.Grep{
@@ -133,7 +150,6 @@ func Main() {
 	}
 
 	ix := index.Open(index.File())
-	ix.Verbose = *verboseFlag
 	var post []uint32
 	if *bruteFlag {
 		post = ix.PostingQuery(&index.Query{Op: index.QAll})
@@ -165,14 +181,148 @@ func Main() {
 
 	for _, fileid := range post {
 		name := ix.Name(fileid)
+		lock.Lock()
+		seen[name] = true
+		lock.Unlock()
 		g.File(name)
 		// short circuit here too
 		if g.Done {
 			break
 		}
 	}
+	if *allFilesFlag {
+		if *exclude != "" {
+			var excludePath string
+			if (*exclude)[:2] == "~/" {
+				excludePath = filepath.Join(index.HomeDir(), (*exclude)[2:])
+			} else {
+				excludePath = *exclude
+			}
+			data, err := ioutil.ReadFile(excludePath)
+			if err != nil {
+				log.Fatal(err)
+			}
+			excludePatterns = append(excludePatterns, strings.Split(string(data), "\n")...)
+			for i, pattern := range excludePatterns {
+				excludePatterns[i] = strings.TrimSpace(pattern)
+			}
+		}
+		walkChan := make(chan string)
+		doneChan := make(chan bool)
+		ctx, cancelCtx := context.WithCancel(context.TODO())
+		go func() {
+			for {
+				select {
+				case path := <-walkChan:
+					// short circuit here too
+					if !g.Done {
+						g.File(path)
+					} else {
+						cancelCtx()
+					}
+				case <-doneChan:
+					return
+				}
+			}
+		}()
+		for _, fpath := range ix.Paths() {
+			if !g.Done {
+				walk(ctx, fpath, "", walkChan)
+			}
+		}
+		doneChan <- true
+	}
 
 	matches = g.Match
+}
+
+func walk(ctx context.Context, arg string, symlinkFrom string, out chan<- string) {
+	err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+		select {
+		case <-ctx.Done():
+			return filepath.SkipAll
+		default:
+			if basedir, elem := filepath.Split(path); elem != "" {
+				exclude := false
+				for _, pattern := range excludePatterns {
+					exclude, err = filepath.Match(pattern, elem)
+					if err != nil {
+						log.Fatal(err)
+					}
+					if exclude {
+						break
+					}
+				}
+
+				// Skip various temporary or "hidden" files or directories.
+				if info != nil && info.IsDir() {
+					if exclude {
+						return filepath.SkipDir
+					}
+				} else {
+					if exclude {
+						return nil
+					}
+					if info != nil && info.Mode()&os.ModeSymlink != 0 {
+						if *noFollowSymlinksFlag {
+							return nil
+						}
+						var symlinkAs string
+						if basedir[len(basedir)-1] == os.PathSeparator {
+							symlinkAs = basedir + elem
+						} else {
+							symlinkAs = basedir + string(os.PathSeparator) + elem
+						}
+						if symlinkFrom != "" {
+							symlinkAs = symlinkFrom + symlinkAs[len(arg):]
+						}
+						if p, err := filepath.EvalSymlinks(symlinkAs); err != nil {
+							if symlinkFrom != "" {
+								log.Printf("%s: skipped. Symlink could not be resolved", symlinkFrom+path[len(arg):])
+							} else {
+								log.Printf("%s: skipped. Symlink could not be resolved", path)
+							}
+						} else {
+							walk(ctx, p, symlinkAs, out)
+						}
+						return nil
+					}
+				}
+			}
+			if err != nil {
+				if symlinkFrom != "" {
+					log.Printf("%s: skipped. Error: %s", symlinkFrom+path[len(arg):], err)
+				} else {
+					log.Printf("%s: skipped. Error: %s", path, err)
+				}
+				return nil
+			}
+			if info != nil {
+				if info.Mode()&os.ModeType == 0 {
+					var resolved string
+					if symlinkFrom == "" {
+						resolved = path
+					} else {
+						resolved = symlinkFrom + path[len(arg):]
+					}
+					lock.RLock()
+					if !seen[resolved] {
+						lock.RUnlock()
+						lock.Lock()
+						seen[resolved] = true
+						lock.Unlock()
+						out <- resolved
+					} else {
+						lock.RUnlock()
+					}
+				}
+			}
+			return nil
+		}
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
