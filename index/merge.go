@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -43,12 +43,6 @@ type idrange struct {
 	lo, hi, new uint32
 }
 
-type postIndex struct {
-	tri    uint32
-	count  uint32
-	offset uint32
-}
-
 // Merge creates a new index in the file dst that corresponds to merging
 // the two indices src1 and src2.  If both src1 and src2 claim responsibility
 // for a path, src2 is assumed to be newer and is given preference.
@@ -74,8 +68,6 @@ func Merge(dst, src1, src2 string) {
 		for i1 < uint32(ix1.numName) && ix1.Name(i1) < limit {
 			i1++
 		}
-		hi := i1
-
 		// Record range before the shadow.
 		if old < lo {
 			map1 = append(map1, idrange{old, lo, new})
@@ -92,7 +84,8 @@ func Merge(dst, src1, src2 string) {
 		for i2 < uint32(ix2.numName) && ix2.Name(i2) < limit {
 			i2++
 		}
-		hi = i2
+
+		hi := i2
 		if lo < hi {
 			map2 = append(map2, idrange{lo, hi, new})
 			new += hi - lo
@@ -245,7 +238,7 @@ type postMapReader struct {
 	trigram uint32
 	count   uint32
 	offset  uint32
-	d       []byte
+	data    []byte
 	oldid   uint32
 	fileid  uint32
 	i       int
@@ -275,7 +268,7 @@ func (r *postMapReader) load() {
 		r.fileid = ^uint32(0)
 		return
 	}
-	r.d = r.ix.slice(r.ix.postData+r.offset+3, -1)
+	r.data = r.ix.slice(r.ix.postData+r.offset+3, -1)
 	r.oldid = ^uint32(0)
 	r.i = 0
 }
@@ -283,12 +276,12 @@ func (r *postMapReader) load() {
 func (r *postMapReader) nextId() bool {
 	for r.count > 0 {
 		r.count--
-		delta64, n := binary.Uvarint(r.d)
+		delta64, n := binary.Uvarint(r.data)
 		delta := uint32(delta64)
 		if n <= 0 || delta == 0 {
 			corrupt()
 		}
-		r.d = r.d[n:]
+		r.data = r.data[n:]
 		r.oldid += delta
 		for r.i < len(r.idmap) && r.idmap[r.i].hi <= r.oldid {
 			r.i++
@@ -311,7 +304,6 @@ func (r *postMapReader) nextId() bool {
 type postDataWriter struct {
 	out           *bufWriter
 	postIndexFile *bufWriter
-	buf           [10]byte
 	base          uint32
 	count, offset uint32
 	last          uint32

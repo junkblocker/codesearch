@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -37,7 +37,7 @@ separated by NUL ('\0') character instead of the standard NL ('\n') character.
 `
 
 func usage() {
-	fmt.Fprintf(os.Stderr, usageMessage)
+	fmt.Fprint(os.Stderr, usageMessage)
 	os.Exit(2)
 }
 
@@ -64,7 +64,9 @@ func main() {
 			log.Fatal(err)
 		}
 		defer f.Close()
-		pprof.StartCPUProfile(f)
+		if perr := pprof.StartCPUProfile(f); perr != nil {
+			log.Fatal(perr)
+		}
 		defer pprof.StopCPUProfile()
 	}
 

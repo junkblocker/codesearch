@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013-2016 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -340,9 +340,9 @@ func (m *matcher) matchString(b string, beginText, endText bool) (end int) {
 
 // isWordByte reports whether the byte c is a word character: ASCII only.
 // This is used to implement \b and \B.  This is not right for Unicode, but:
-//	- it's hard to get right in a byte-at-a-time matching world
-//	  (the DFA has only one-byte lookahead)
-//	- this crude approximation is the same one PCRE uses
+//   - it's hard to get right in a byte-at-a-time matching world
+//     (the DFA has only one-byte lookahead)
+//   - this crude approximation is the same one PCRE uses
 func isWordByte(c int) bool {
 	return 'A' <= c && c <= 'Z' ||
 		'a' <= c && c <= 'z' ||

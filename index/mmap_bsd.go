@@ -1,9 +1,10 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:build darwin || freebsd || openbsd || netbsd
 // +build darwin freebsd openbsd netbsd
 
 package index
@@ -37,11 +38,11 @@ func mmapFile(f *os.File) mmapData {
 	if err != nil {
 		log.Fatalf("mmap %s: %v", f.Name(), err)
 	}
-	return mmapData{f, data[:n], 0}
+	return mmapData{f, data[:n]}
 }
 
 func unmmapFile(mm *mmapData) {
-	err := syscall.Munmap(mm.d[0:cap(mm.d)])
+	err := syscall.Munmap(mm.data[0:cap(mm.data)])
 	if err != nil {
 		log.Println("unmmapFile:", err)
 	}
