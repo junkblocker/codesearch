@@ -1,10 +1,16 @@
+ifneq (,)
+This makefile requires GNU Make.
+endif
+
+.ONESHELL: ## Make sure same shell is used for all targets for easier passing of settings
+
 BUILDS_DIR = builds
 
 RELEASE = $(shell git tag -l | tail -1 )
 
 .PHONY: all
-help: ## Prints help for targets with comments
-	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+help: ## Display this help screen
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 	@echo "Release is set to $(RELEASE)"
 
 .PHONY: all
@@ -21,15 +27,13 @@ release: tagcheck deps
 .PHONY: tagcheck
 tagcheck:
 	@if [ -z "$(RELEASE)" ]; then \
-		echo "Could not determine tag to use. Aborting." ; \
-		fail ; \
+		$(error "Could not determine tag to use. Aborting.") ; \
 	fi
 
 .PHONY: deps
 deps:
 	@if [ -z "$(GITHUB_TOKEN)" ]; then \
-		echo "GITHUB_TOKEN is not set in the environment" ; \
-		fail ; \
+		$(error "GITHUB_TOKEN is not set in the environment") ; \
 	fi
 	@if [ -z "$(command -v goxc)" ]; then \
 		cd / && go install github.com/laher/goxc@latest ; \
