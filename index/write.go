@@ -60,6 +60,7 @@ type IndexWriter struct {
 	MaxTextTrigrams int
 
 	MaxInvalidUTF8Ratio float64
+	MaxNullRatio float64
 }
 
 const npost = 64 << 20 / 8 // 64 MB worth of post entries
@@ -140,9 +141,11 @@ func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
 		n           = int64(0)
 		linelen     = 0
 		inv_cnt     = int64(0)
+		null_cnt     = int64(0)
 		b1          = byte(0)
 		b2          = byte(0)
 		max_invalid = int64(float64(size) * ix.MaxInvalidUTF8Ratio)
+		max_null = int64(float64(size) * ix.MaxNullRatio)
 	)
 	for {
 		tv = (tv << 8) & (1<<24 - 1)
@@ -171,7 +174,7 @@ func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
 			if !validUTF8(b1, b2) {
 				if inv_cnt++; inv_cnt > max_invalid {
 					if ix.LogSkip {
-						log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, size, inv_cnt, float64(inv_cnt)/float64(size))
+						log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d, invalid: %d, ratio: %f\n", name, size, inv_cnt, float64(inv_cnt)/float64(size))
 					}
 					return
 				}
@@ -179,11 +182,13 @@ func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
 				ix.trigram.Add(tv)
 			}
 		}
-		if (b1 == 0x00 || b2 == 0x00) && n >= 3 {
-			if ix.LogSkip {
-				log.Printf("%s: skipped. Binary file. Bytes %02X%02X at offset %d\n", name, (tv>>8)&0xFF, tv&0xFF, n)
+		if c == 0x00 {
+			if null_cnt++; null_cnt > max_null {
+				if ix.LogSkip {
+					log.Printf("%s: skipped. High null byte ratio. total: %d, null: %d, ratio: %f\n", name, size, null_cnt, float64(null_cnt)/float64(size))
+				}
+				return
 			}
-			return
 		}
 		if linelen++; linelen > ix.MaxLineLen {
 			if ix.LogSkip {
