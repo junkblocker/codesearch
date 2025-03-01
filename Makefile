@@ -10,6 +10,19 @@ export PROJECT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 RELEASE = $(shell git tag -l | tail -1)
 
+# Supported platforms
+PLATFORMS = \
+    linux-amd64 \
+    linux-arm64 \
+    darwin-amd64 \
+    darwin-arm64 \
+    freebsd-amd64 \
+    freebsd-arm64 \
+    windows-amd64 \
+    windows-arm64
+
+EXECUTABLES := csearch cindex cgrep
+
 .PHONY: all
 help: ## Display this help screen
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -19,10 +32,36 @@ help: ## Display this help screen
 all: lint vet test build install ## lint test and install locally
 	@echo "Run $(MAKE) publish to publish to github"
 
+$(EXECUTABLES): deps vet test
+	@cd "$(PROJECT_DIR)" && for platform in $(PLATFORMS); do \
+		GOOS=$$(echo $$platform | cut -d'-' -f1); \
+		GOARCH=$$(echo $$platform | cut -d'-' -f2); \
+		output_name=$@; \
+		if [ $$GOOS = "windows" ]; then \
+			output_name=$${output_name}.exe; \
+		fi; \
+		echo "Building $$output_name for $$GOOS/$$GOARCH"; \
+		rm -f builds/$(RELEASE)/$${GOOS}_$${GOARCH}/$${output_name}; \
+		GOOS=$$GOOS GOARCH=$$GOARCH go build -o builds/$(RELEASE)/$${GOOS}_$${GOARCH}/$${output_name} ./cmd/$@; \
+	done
+
 .PHONY: release
-release: tagcheck deps
-	@echo "Building $(RELEASE)"
-	@cd "$(PROJECT_DIR)" && goxc -bc="!plan9" -arch='amd64' -pv="$(RELEASE)" -d="$(BUILDS_DIR)" -include=LICENSE -os='darwin freebsd linux windows' go-vet go-test xc archive-zip archive-tar-gz
+release: $(EXECUTABLES)
+	@cd "$(PROJECT_DIR)" && for platform in $(PLATFORMS); do \
+		GOOS=$$(echo $$platform | cut -d'-' -f1); \
+		GOARCH=$$(echo $$platform | cut -d'-' -f2); \
+		echo "Bundling for $$GOOS/$$GOARCH"; \
+		cp LICENSE "builds/$(RELEASE)/$${GOOS}_$${GOARCH}/" ; \
+		if [ $$GOOS = "windows" ]; then \
+			rm -f builds/codesearch_$(RELEASE)_$${GOOS}_$${GOARCH}.zip ; \
+			zip -D -r -j builds/$(RELEASE)/codesearch_$(RELEASE)_$${GOOS}_$${GOARCH}.zip builds/$(RELEASE)/$${GOOS}_$${GOARCH}
+		else \
+			rm -f builds/codesearch_$(RELEASE)_$${GOOS}_$${GOARCH}.tar.gz ; \
+			tar -cvzf builds/$(RELEASE)/codesearch_$(RELEASE)_$${GOOS}_$${GOARCH}.tar.gz -C builds/$(RELEASE)/$${GOOS}_$${GOARCH} .
+		fi; \
+	done
+
+
 
 .PHONY: tagcheck
 tagcheck:
