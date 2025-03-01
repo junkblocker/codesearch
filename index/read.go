@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013-2023 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2025 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -396,8 +396,9 @@ func corrupt() {
 // An mmapData is mmap'ed read-only data from a file.
 type mmapData struct {
 	f    *os.File
-	data []byte
 	h    uintptr
+	data []byte // [:file size]
+	dall []byte // [:] hole mapped data, for Linux/BSD/Darwin
 }
 
 // mmap maps the given file into memory.
