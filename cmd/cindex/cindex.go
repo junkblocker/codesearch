@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"slices"
+	"strings"
 
 	"github.com/google/codesearch/index"
 )
@@ -64,9 +65,15 @@ var (
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
 	checkFlag   = flag.Bool("check", false, "check index is well-formatted")
+	logSkipFlag = flag.Bool("logskip", false, "print why a file was skipped from indexing")
 	indexPath   = flag.String("indexpath", "", "specifies index path")
+	exclude     = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
 	zipFlag     = flag.Bool("zip", false, "index content in zip files")
 	statsFlag   = flag.Bool("stats", false, "print index size statistics")
+
+	excludePatterns = []string{
+		".csearchindex",
+	}
 )
 
 func main() {
@@ -75,7 +82,7 @@ func main() {
 	flag.Parse()
 
 	if *indexPath != "" {
-		if err := os.Setenv("CSEARCHINDEX", *indexPath) ; err != nil {
+		if err := os.Setenv("CSEARCHINDEX", *indexPath); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -123,6 +130,27 @@ func main() {
 			log.Fatal("Invalid index path " + master)
 		}
 	}
+
+	if *exclude != "" {
+		var excludePath string
+		if (*exclude)[:2] == "~/" {
+			excludePath = filepath.Join(index.HomeDir(), (*exclude)[2:])
+		} else {
+			excludePath = *exclude
+		}
+		if *logSkipFlag {
+			log.Printf("Loading exclude patterns from %s", excludePath)
+		}
+		data, err := os.ReadFile(excludePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		excludePatterns = append(excludePatterns, strings.Split(string(data), "\n")...)
+		for i, pattern := range excludePatterns {
+			excludePatterns[i] = strings.TrimSpace(pattern)
+		}
+	}
+
 	var roots []index.Path
 	if flag.NArg() == 0 {
 		ix := index.Open(index.File())
@@ -149,7 +177,6 @@ func main() {
 		if stat != nil && (stat.IsDir() || !stat.Mode().IsRegular()) {
 			log.Fatal("Invalid index path " + master)
 		}
-
 	}
 	file := master
 	if !*resetFlag {
@@ -165,15 +192,33 @@ func main() {
 	ix := index.Create(file)
 	ix.Verbose = *verboseFlag
 	ix.Zip = *zipFlag
+	ix.LogSkip = *logSkipFlag
 	ix.AddRoots(roots)
 	for _, root := range roots {
 		log.Printf("index %s", root)
 		filepath.Walk(root.String(), func(path string, info os.FileInfo, err error) error {
 			if _, elem := filepath.Split(path); elem != "" {
+				exclude := false
+				for _, pattern := range excludePatterns {
+					exclude, err = filepath.Match(pattern, elem)
+					if err != nil {
+						log.Fatal(err)
+					}
+					if exclude {
+						break
+					}
+				}
+
 				// Skip various temporary or "hidden" files or directories.
-				if elem[0] == '.' || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
-					if info.IsDir() {
+				if exclude {
+					if info != nil && info.IsDir() {
+						if *logSkipFlag {
+							log.Printf("%s: skipped. Excluded directory", path)
+						}
 						return filepath.SkipDir
+					}
+					if *logSkipFlag {
+						log.Printf("%s: skipped. Excluded file", path)
 					}
 					return nil
 				}

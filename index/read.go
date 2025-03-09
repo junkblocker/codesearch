@@ -659,6 +659,16 @@ func mmap(file string) mmapData {
 	return mmapFile(f)
 }
 
+// find home directory without cgo if needed
+func HomeDir() string {
+	var home string
+	home = os.Getenv("HOME")
+	if runtime.GOOS == "windows" && home == "" {
+		home = os.Getenv("USERPROFILE")
+	}
+	return home
+}
+
 // TODO look in parent directories for index
 // TODO cindex -init
 
@@ -669,10 +679,5 @@ func File() string {
 	if f != "" {
 		return f
 	}
-	var home string
-	home = os.Getenv("HOME")
-	if runtime.GOOS == "windows" && home == "" {
-		home = os.Getenv("USERPROFILE")
-	}
-	return filepath.Clean(home + "/.csearchindex")
+	return filepath.Join(HomeDir(), ".csearchindex")
 }
