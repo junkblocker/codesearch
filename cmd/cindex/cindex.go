@@ -59,17 +59,24 @@ func usage() {
 	os.Exit(2)
 }
 
+const (
+	DEFAULT_MAX_LINE_LENGTH = 2000
+)
+
 var (
-	listFlag    = flag.Bool("list", false, "list indexed paths and exit")
-	resetFlag   = flag.Bool("reset", false, "discard existing index")
-	verboseFlag = flag.Bool("verbose", false, "print extra information")
-	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
-	checkFlag   = flag.Bool("check", false, "check index is well-formatted")
-	logSkipFlag = flag.Bool("logskip", false, "print why a file was skipped from indexing")
-	indexPath   = flag.String("indexpath", "", "specifies index path")
-	exclude     = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
-	zipFlag     = flag.Bool("zip", false, "index content in zip files")
-	statsFlag   = flag.Bool("stats", false, "print index size statistics")
+	listFlag            = flag.Bool("list", false, "list indexed paths and exit")
+	resetFlag           = flag.Bool("reset", false, "discard existing index")
+	verboseFlag         = flag.Bool("verbose", false, "print extra information")
+	cpuProfile          = flag.String("cpuprofile", "", "write cpu profile to this file")
+	checkFlag           = flag.Bool("check", false, "check index is well-formatted")
+	logSkipFlag         = flag.Bool("logskip", false, "print why a file was skipped from indexing")
+	indexPath           = flag.String("indexpath", "", "specifies index path")
+	maxFileLen          = flag.Int64("maxfilelen", index.DefaultMaxFileLen, "skip indexing a file if longer than this size in bytes")
+	maxLineLen          = flag.Int("maxlinelen", index.DefaultMaxLineLen, "skip indexing a file if it has a line longer than this size in bytes")
+	maxTextTrigrams     = flag.Int("maxtrigrams", index.DefaultMaxTextTrigrams, "skip indexing a file if it has more than this number of trigrams")
+	exclude             = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
+	zipFlag             = flag.Bool("zip", false, "index content in zip files")
+	statsFlag           = flag.Bool("stats", false, "print index size statistics")
 
 	excludePatterns = []string{
 		".csearchindex",
@@ -193,6 +200,9 @@ func main() {
 	ix.Verbose = *verboseFlag
 	ix.Zip = *zipFlag
 	ix.LogSkip = *logSkipFlag
+	ix.MaxLineLen = *maxLineLen
+	ix.MaxFileLen = *maxFileLen
+	ix.MaxTextTrigrams = *maxTextTrigrams
 	ix.AddRoots(roots)
 	for _, root := range roots {
 		log.Printf("index %s", root)

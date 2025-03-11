@@ -62,6 +62,10 @@ type IndexWriter struct {
 
 	inbuf []byte  // input buffer
 	main  *Buffer // main index file
+
+	MaxFileLen      int64
+	MaxLineLen      int
+	MaxTextTrigrams int
 }
 
 const npost = 64 << 20 / 8 // 64 MB worth of post entries
@@ -125,13 +129,14 @@ func makePostEntry(trigram uint32, fileid int) postEntry {
 
 // Tuning constants for detecting text files.
 // A file is assumed not to be text files (and thus not indexed)
-// if it contains an invalid UTF-8 sequences, if it is longer than maxFileLength
-// bytes, if it contains a line longer than maxLineLen bytes,
-// or if it contains more than maxTextTrigrams distinct trigrams.
+// if it contains an invalid UTF-8 sequences, if it is longer than MaxFileLen
+// bytes, if it contains a line longer than MaxLineLen bytes,
+// or if it contains more than MaxTextTrigrams distinct trigrams.
 const (
-	maxFileLen      = 1 << 30
-	maxLineLen      = 2000
-	maxTextTrigrams = 20000
+	DefaultMaxFileLen          = 1 << 30
+	DefaultMaxLineLen          = 2000
+	DefaultMaxTextTrigrams     = 20000
+	DefaultMaxInvalidUTF8Ratio = 0.1
 )
 
 // AddRoots adds the given roots to the index's list of roots.
@@ -256,15 +261,15 @@ func (ix *IndexWriter) add(name string, f io.Reader) error {
 			}
 			return nil
 		}
-		if n > maxFileLen {
+		if n > ix.MaxFileLen {
 			if ix.LogSkip {
 				log.Printf("%s: too long, ignoring\n", name)
 			}
 			return nil
 		}
-		if linelen++; linelen > maxLineLen {
+		if linelen++; linelen > ix.MaxLineLen {
 			if ix.LogSkip {
-				log.Printf("%s: very long lines, ignoring\n", name)
+				log.Printf("%s: very long lines (> %d bytes), ignoring\n", name, ix.MaxLineLen)
 			}
 			return nil
 		}
@@ -272,9 +277,9 @@ func (ix *IndexWriter) add(name string, f io.Reader) error {
 			linelen = 0
 		}
 	}
-	if ix.trigram.Len() > maxTextTrigrams {
+	if ix.trigram.Len() > ix.MaxTextTrigrams {
 		if ix.LogSkip {
-			log.Printf("%s: too many trigrams, probably not text, ignoring\n", name)
+			log.Printf("%s: too many trigrams (> %d), probably not text, ignoring\n", name, ix.MaxTextTrigrams)
 		}
 		return nil
 	}
@@ -770,8 +775,10 @@ func validUTF8(c1, c2 uint32) bool {
 // Run two rounds of 12-bit radix sort.
 const sortK = 12
 
-var sortTmp []postEntry
-var sortN [1 << sortK]int
+var (
+	sortTmp []postEntry
+	sortN   [1 << sortK]int
+)
 
 func sortPost(post []postEntry) {
 	if len(post) > len(sortTmp) {
