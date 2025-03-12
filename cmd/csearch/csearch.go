@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013-2025 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -14,8 +16,8 @@ import (
 	"runtime/pprof"
 	"strings"
 
-	"github.com/google/codesearch/index"
-	"github.com/google/codesearch/regexp"
+	"github.com/junkblocker/codesearch/index"
+	"github.com/junkblocker/codesearch/regexp"
 )
 
 var usageMessage = `usage: csearch [-c] [-f fileregexp] [-h] [-i] [-l] [-n] regexp

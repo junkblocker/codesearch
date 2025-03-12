@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013-2025 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -14,7 +16,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/codesearch/index"
+	"github.com/junkblocker/codesearch/index"
 )
 
 var usageMessage = `usage: cindex [-list] [-reset] [-zip] [path...]

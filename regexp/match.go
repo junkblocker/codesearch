@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013-2025 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -17,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/codesearch/sparse"
+	"github.com/junkblocker/codesearch/sparse"
 )
 
 // A matcher holds the state for running regular expression search.
