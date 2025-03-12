@@ -360,6 +360,7 @@ type Grep struct {
 	Stderr io.Writer // error target
 
 	L bool // L flag - print file names only
+	Z bool // 0 flag - print matches separated by \0
 	C bool // C flag - print count of matches
 	N bool // N flag - print line numbers
 	H bool // H flag - do not print file names
@@ -379,6 +380,7 @@ type Grep struct {
 
 func (g *Grep) AddFlags() {
 	flag.BoolVar(&g.L, "l", false, "list matching files only")
+	flag.BoolVar(&g.Z, "0", false, "list filename matches separated by NUL ('\\0') character. Requires the -l option")
 	flag.BoolVar(&g.C, "c", false, "print match counts only")
 	flag.BoolVar(&g.N, "n", false, "show line numbers")
 	flag.BoolVar(&g.H, "h", false, "omit file names")
@@ -443,9 +445,13 @@ func (g *Grep) Reader(r io.Reader, name string) {
 		prefix     = ""
 		beginText  = true
 		endText    = false
+		outSep     = '\n'
 	)
 	if !g.H {
 		prefix = name + ":"
+	}
+	if g.L && g.Z {
+		outSep = '\x00'
 	}
 	chunkStart := 0
 	for {
@@ -479,7 +485,7 @@ func (g *Grep) Reader(r io.Reader, name string) {
 				if g.HTML {
 					fmt.Fprintf(g.Stdout, "<a href=\"show/%s\">%s</a>\n", g.esc(name), g.esc(name))
 				} else {
-					fmt.Fprintf(g.Stdout, "%s\n", name)
+					fmt.Fprintf(g.Stdout, "%s%c", name, outSep)
 				}
 				return
 			}

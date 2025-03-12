@@ -16,13 +16,25 @@ import (
 	"github.com/junkblocker/codesearch/regexp"
 )
 
-var usageMessage = `usage: cgrep [-c] [-h] [-i] [-l] [-n] [-v] regexp [file...]
+var usageMessage = `usage: cgrep [options] regexp [file...]
 
-Cgrep behaves like grep, searching for regexp, an RE2 (nearly PCRE) regular expression.
+cgrep behaves like grep, searching for regexp, an RE2 (nearly PCRE) regular expression.
 
-The -c, -h, -i, -l, -n, and -v flags are as in grep, although note that as per Go's
-flag parsing convention, they cannot be combined: the option pair -i -n
-cannot be abbreviated to -in.
+Options:
+  -c           print only a count of selected lines to stdout
+  -h           print this help text and exit
+  -i           case-insensitive grep
+  -l           print only the names of the files containing matches
+  -0           print -l matches separated by NUL ('\0') character
+  -n           print each output line preceded by its relative line number in
+               the file, starting at 1
+  -v           invert the sense of matching, to select non-matching lines
+
+Note that as per Go's flag parsing convention, the options cannot be combined.
+For example, the option pair -i -n cannot be abbreviated to -in.
+
+The -0 flag is only meaningful with the -l option. It outputs the results
+separated by NUL ('\0') character instead of the standard NL ('\n') character.
 `
 
 func usage() {

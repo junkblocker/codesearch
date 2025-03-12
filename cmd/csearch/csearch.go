@@ -20,9 +20,32 @@ import (
 	"github.com/junkblocker/codesearch/regexp"
 )
 
-var usageMessage = `usage: csearch [-c] [-f fileregexp] [-h] [-i] [-l] [-n] regexp
+var usageMessage = `usage: csearch [options] regexp
 
-Csearch behaves like grep over all indexed files, searching for regexp,
+Options:
+
+  -c           print only a count of selected lines to stdout
+               (Not meaningful with -l or -M modes)
+  -f FILEREGEXP
+               search only files with names matching this RE2 regular expression FILEREGEXP
+  -h           omit line numbers in search results
+               (Not meaningful with -c, or -0 modes)
+  -help        print this help text and exit
+  -i           case-insensitive search
+  -l           print only the names of the files containing matches
+               (Not meaningful with -c, -0 or -M modes)
+  -n           print each output line preceded by its relative line number in
+               the file, starting at 1
+  -indexpath FILE
+               use specified FILE as the index path. Overrides $CSEARCHINDEX.
+  -verbose     print extra information
+  -brute       brute force - search all files in index
+  -0           print -l matches separated by NUL ('\0') character
+               (Not meaningful with -h, or -c modes)
+  -cpuprofile FILE
+               write CPU profile to FILE
+
+csearch behaves like grep over all indexed files, searching for regexp,
 an RE2 (nearly PCRE) regular expression.
 
 The -c, -h, -i, -l, and -n flags are as in grep, although note that as per Go's
@@ -78,7 +101,7 @@ func Main() {
 	}
 	args := flag.Args()
 
-	if len(args) != 1 {
+	if len(args) != 1 || (g.L && g.C) || (g.Z && g.C) || (g.H && g.C) || (g.Z && g.H) || (g.Z && !g.L) {
 		usage()
 	}
 
