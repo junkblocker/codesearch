@@ -30,6 +30,9 @@ func (p Path) String() string {
 }
 
 func (p Path) HasPathPrefix(parent Path) bool {
+	if parent.s == "" {
+		return false
+	}
 	return strings.HasPrefix(p.s, parent.s) &&
 		(p.s == parent.s ||
 			p.s[len(parent.s)] == '/' ||
