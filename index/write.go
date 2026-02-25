@@ -217,9 +217,7 @@ func (ix *IndexWriter) Add(name string, f io.Reader) error {
 		for _, file := range files {
 			r, err := file.Open()
 			if err != nil {
-				println("no3", name)
-
-				log.Printf("%s: %v", r, err)
+				log.Printf("%s/%s: %v", name, file.Name, err)
 				continue
 			}
 			ix.add(name+"\x01"+file.Name, r)
@@ -783,7 +781,7 @@ func (b *Buffer) writeUint64(x int) {
 	if x < 0 {
 		log.Fatalf("index is too large")
 	}
-	if cap(b.buf)-len(b.buf) < 4 {
+	if cap(b.buf)-len(b.buf) < 8 {
 		b.Flush()
 	}
 	b.buf = append(b.buf, byte(x>>56), byte(x>>48), byte(x>>40), byte(x>>32), byte(x>>24), byte(x>>16), byte(x>>8), byte(x))

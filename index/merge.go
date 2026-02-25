@@ -34,7 +34,6 @@ package index
 
 import (
 	"encoding/binary"
-	"fmt"
 	"os"
 )
 
@@ -52,7 +51,9 @@ var writeVersion = 2
 // for a path, src2 is assumed to be newer and is given preference.
 func Merge(dst, src1, src2 string) {
 	ix1 := Open(src1)
+	defer ix1.Close()
 	ix2 := Open(src2)
+	defer ix2.Close()
 
 	// Build fileid maps.
 	var i1, i2, new int
@@ -94,7 +95,6 @@ func Merge(dst, src1, src2 string) {
 		// Because we are iterating over the ix2 paths,
 		// there can't be gaps, so it must start at i2.
 		if i2 < ix2.numName && name2.Compare(root) < 0 {
-			fmt.Fprintf(os.Stderr, "IX %v %v %d %d %q=%q < %q %v\n", ix1.version, ix2.version, i2, ix2.numName, ix2.Name(i2), name2, root, ix2.version)
 			panic("merge: inconsistent index")
 		}
 		lo = i2
