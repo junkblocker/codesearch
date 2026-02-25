@@ -280,11 +280,7 @@ func (ix *Index) NamesAt(min, max int) *PathReader {
 }
 
 func (ix *Index) Names(lo, hi int) iter.Seq[Path] {
-	r := ix.NamesAt(lo, hi)
-	if r.Valid() {
-		r.limit = hi - lo - 1
-	}
-	return r.All()
+	return ix.NamesAt(lo, hi).All()
 }
 
 func (ix *Index) str(off int) []byte {

@@ -100,4 +100,15 @@ func TestMerge(t *testing.T) {
 	check(ix3, "wor", 0, 1, 2)
 	check(ix3, "now", 3, 4, 6)
 	check(ix3, "pot", 4, 5, 7)
+
+	// Verify Names(lo, hi) returns exactly hi-lo paths (regression for off-by-one bug).
+	for _, tc := range []struct{ lo, hi int }{{0, 1}, {0, 3}, {1, 4}, {2, 8}} {
+		var got []string
+		for p := range ix3.Names(tc.lo, tc.hi) {
+			got = append(got, p.String())
+		}
+		if len(got) != tc.hi-tc.lo {
+			t.Errorf("Names(%d,%d): got %d paths %v, want %d", tc.lo, tc.hi, len(got), got, tc.hi-tc.lo)
+		}
+	}
 }
