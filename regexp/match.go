@@ -11,10 +11,12 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"regexp/syntax"
 	"sort"
+	"strconv"
 
 	"github.com/junkblocker/codesearch/sparse"
 )
@@ -361,35 +363,59 @@ type Grep struct {
 	C bool // C flag - print count of matches
 	N bool // N flag - print line numbers
 	H bool // H flag - do not print file names
+	V bool // V flag - print non-matching lines (only for cgrep, not csearch)
 
+	HTML    bool // emit HTML output for csweb
+	Match   bool // were any matches found?
+	Matches int  // how many matches were found?
+	Limit   int  // stop after this many matches
+	Limited bool // stopped because of limit
+
+	PreContext  int // number of lines to print after
+	PostContext int // number of lines to print before
+
+	// junkblocker extensions: per-file and global line-count limits
 	Done                 bool
 	lines_printed        int64 // running match count
-	max_print_lines      int64 // Max match count
-	maxPrintLinesPerFile int64 // Max match count
-
-	Match bool
+	max_print_lines      int64 // max global match count (0 = no limit)
+	maxPrintLinesPerFile int64 // max per-file match count (0 = no limit)
 
 	buf []byte
 }
 
 func (g *Grep) AddFlags() {
 	flag.BoolVar(&g.L, "l", false, "list matching files only")
-	flag.BoolVar(&g.Z, "0", false, "list filename matches separated by NUL ('\\0') character. Requires -l option")
+	flag.BoolVar(&g.Z, "0", false, "list filename matches separated by NUL ('\\0') character. Requires the -l option")
 	flag.BoolVar(&g.C, "c", false, "print match counts only")
 	flag.BoolVar(&g.N, "n", false, "show line numbers")
 	flag.BoolVar(&g.H, "h", false, "omit file names")
+	flag.IntVar(&g.PreContext, "B", 0, "show `n` lines before match")
+	flag.IntVar(&g.PostContext, "A", 0, "show `n` lines after match")
+	flag.Func("C", "show `n` lines before and after match", func(s string) error {
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return err
+		}
+		g.PreContext = n
+		g.PostContext = n
+		return nil
+	})
 }
 
-func (g *Grep) File(name string) {
-	f, err := os.Open(name)
-	if err != nil {
-		fmt.Fprintf(g.Stderr, "%s\n", err)
-		return
+func (g *Grep) AddVFlag() {
+	flag.BoolVar(&g.V, "v", false, "show non-matching lines")
+}
+
+func (g *Grep) esc(s string) string {
+	if g.HTML {
+		return html.EscapeString(s)
 	}
-	defer f.Close()
-	g.Reader(f, name)
+	return s
 }
 
+// LimitPrintCount sets a global and per-file limit on the number of printed
+// matches. Set either to 0 for no limit. This is a junkblocker extension
+// used by csearch's -m and -M flags.
 func (g *Grep) LimitPrintCount(globalLimit int64, fileLimit int64) {
 	g.Done = false
 	g.lines_printed = 0
@@ -401,6 +427,16 @@ func (g *Grep) LimitPrintCount(globalLimit int64, fileLimit int64) {
 	if g.maxPrintLinesPerFile < 0 {
 		g.maxPrintLinesPerFile = 0
 	}
+}
+
+func (g *Grep) File(name string) {
+	f, err := os.Open(name)
+	if err != nil {
+		fmt.Fprintf(g.Stderr, "%s\n", g.esc(err.Error()))
+		return
+	}
+	defer f.Close()
+	g.Reader(f, name)
 }
 
 var nl = []byte{'\n'}

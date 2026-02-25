@@ -9,22 +9,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/junkblocker/codesearch/index"
-)
-
-const (
-	DEFAULT_MAX_FILE_LENGTH             = 1 << 30
-	DEFAULT_MAX_LINE_LENGTH             = 2000
-	DEFAULT_MAX_TEXT_TRIGRAMS           = 30000
-	DEFAULT_MAX_INVALID_UTF8_PERCENTAGE = 0.1
 )
 
 var usageMessage = `usage: cindex [options] [path...]
@@ -41,7 +33,7 @@ Options:
   -logskip     print why a file was skipped from indexing
   -no-follow-symlinks
                do not follow symlinked files and directories
-  -maxFileLen BYTES
+  -maxfilelen BYTES
                skip indexing a file if longer than this size in bytes (Default: %v)
   -maxlinelen BYTES
                skip indexing a file if it has a line longer than this size in bytes (Default: %v)
@@ -53,6 +45,8 @@ Options:
                path to file containing a list of file patterns to exclude from indexing
   -filelist FILE
                path to file containing a list of file paths to index
+  -zip         index content in zip files
+  -check       check index is well-formatted
 
 cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
@@ -83,7 +77,9 @@ With no path arguments, cindex -reset removes the index.
 `
 
 func usage() {
-	fmt.Fprintf(os.Stderr, usageMessage, DEFAULT_MAX_FILE_LENGTH, DEFAULT_MAX_LINE_LENGTH, DEFAULT_MAX_TEXT_TRIGRAMS, DEFAULT_MAX_INVALID_UTF8_PERCENTAGE)
+	fmt.Fprintf(os.Stderr, usageMessage,
+		index.DefaultMaxFileLen, index.DefaultMaxLineLen,
+		index.DefaultMaxTextTrigrams, index.DefaultMaxInvalidUTF8Ratio)
 	os.Exit(2)
 }
 
@@ -92,22 +88,18 @@ var (
 	resetFlag            = flag.Bool("reset", false, "discard existing index")
 	verboseFlag          = flag.Bool("verbose", false, "print extra information")
 	cpuProfile           = flag.String("cpuprofile", "", "write cpu profile to this file")
+	checkFlag            = flag.Bool("check", false, "check index is well-formatted")
 	indexPath            = flag.String("indexpath", "", "specifies index path")
 	logSkipFlag          = flag.Bool("logskip", false, "print why a file was skipped from indexing")
 	noFollowSymlinksFlag = flag.Bool("no-follow-symlinks", false, "do not follow symlinked files and directories")
+	zipFlag              = flag.Bool("zip", false, "index content in zip files")
+	statsFlag            = flag.Bool("stats", false, "print index size statistics")
 	exclude              = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
 	fileList             = flag.String("filelist", "", "path to file containing a list of file paths to index")
-	// Tuning variables for detecting text files.
-	// A file is assumed not to be text files (and thus not indexed) if
-	// 1) if it contains an invalid UTF-8 sequences
-	// 2) if it is longer than maxFileLength bytes
-	// 3) if it contains a line longer than maxLineLen bytes,
-	// or
-	// 4) if it contains more than maxTextTrigrams distinct trigrams.
-	maxFileLen          = flag.Int64("maxfilelen", DEFAULT_MAX_FILE_LENGTH, "skip indexing a file if longer than this size in bytes")
-	maxLineLen          = flag.Int("maxlinelen", DEFAULT_MAX_LINE_LENGTH, "skip indexing a file if it has a line longer than this size in bytes")
-	maxTextTrigrams     = flag.Int("maxtrigrams", DEFAULT_MAX_TEXT_TRIGRAMS, "skip indexing a file if it has more than this number of trigrams")
-	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", DEFAULT_MAX_INVALID_UTF8_PERCENTAGE, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
+	maxFileLen           = flag.Int64("maxfilelen", index.DefaultMaxFileLen, "skip indexing a file if longer than this size in bytes")
+	maxLineLen           = flag.Int("maxlinelen", index.DefaultMaxLineLen, "skip indexing a file if it has a line longer than this size in bytes")
+	maxTextTrigrams      = flag.Int("maxtrigrams", index.DefaultMaxTextTrigrams, "skip indexing a file if it has more than this number of trigrams")
+	maxInvalidUTF8Ratio  = flag.Float64("maxinvalidutf8ratio", index.DefaultMaxInvalidUTF8Ratio, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 
 	excludePatterns = []string{
 		".csearchindex",
@@ -117,20 +109,19 @@ var (
 func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 	err := filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 		if basedir, elem := filepath.Split(path); elem != "" {
-			exclude := false
+			excluded := false
 			for _, pattern := range excludePatterns {
-				exclude, err = filepath.Match(pattern, elem)
+				excluded, err = filepath.Match(pattern, elem)
 				if err != nil {
 					log.Fatal(err)
 				}
-				if exclude {
+				if excluded {
 					break
 				}
 			}
 
-			// Skip various temporary or "hidden" files or directories.
 			if info != nil && info.IsDir() {
-				if exclude {
+				if excluded {
 					if logskip {
 						if symlinkFrom != "" {
 							log.Printf("%s: skipped. Excluded directory", symlinkFrom+path[len(arg):])
@@ -141,7 +132,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 					return filepath.SkipDir
 				}
 			} else {
-				if exclude {
+				if excluded {
 					if logskip {
 						if symlinkFrom != "" {
 							log.Printf("%s: skipped. Excluded file", symlinkFrom+path[len(arg):])
@@ -159,7 +150,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 						return nil
 					}
 					var symlinkAs string
-					if basedir[len(basedir)-1] == os.PathSeparator {
+					if len(basedir) > 0 && basedir[len(basedir)-1] == os.PathSeparator {
 						symlinkAs = basedir + elem
 					} else {
 						symlinkAs = basedir + string(os.PathSeparator) + elem
@@ -221,6 +212,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 }
 
 func main() {
+	log.SetPrefix("cindex: ")
 	flag.Usage = usage
 	flag.Parse()
 	args := flag.Args()
@@ -239,8 +231,13 @@ func main() {
 			log.Fatal("Index " + master + " must point to an index file")
 		}
 		ix := index.Open(master)
-		for _, arg := range ix.Paths() {
-			fmt.Printf("%s\n", arg)
+		if *checkFlag {
+			if err := ix.Check(); err != nil {
+				log.Fatal(err)
+			}
+		}
+		for p := range ix.Roots().All() {
+			fmt.Printf("%s\n", p)
 		}
 		return
 	}
@@ -273,7 +270,7 @@ func main() {
 
 	if *exclude != "" {
 		var excludePath string
-		if (*exclude)[:2] == "~/" {
+		if len(*exclude) >= 2 && (*exclude)[:2] == "~/" {
 			excludePath = filepath.Join(index.HomeDir(), (*exclude)[2:])
 		} else {
 			excludePath = *exclude
@@ -281,7 +278,7 @@ func main() {
 		if *logSkipFlag {
 			log.Printf("Loading exclude patterns from %s", excludePath)
 		}
-		data, err := ioutil.ReadFile(excludePath)
+		data, err := os.ReadFile(excludePath)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -293,42 +290,36 @@ func main() {
 
 	if *fileList != "" {
 		var fileListPath string
-		if (*fileList)[:2] == "~/" {
+		if len(*fileList) >= 2 && (*fileList)[:2] == "~/" {
 			fileListPath = filepath.Join(index.HomeDir(), (*fileList)[2:])
 		} else {
 			fileListPath = *fileList
 		}
 		if *logSkipFlag {
-			log.Printf("Loading fileList patterns from %s", fileListPath)
+			log.Printf("Loading fileList from %s", fileListPath)
 		}
-		data, err := ioutil.ReadFile(fileListPath)
+		data, err := os.ReadFile(fileListPath)
 		if err != nil {
 			log.Fatal(err)
 		}
 		args = append(args, strings.Split(string(data), "\n")...)
 	}
 
+	var roots []index.Path
 	if len(args) == 0 {
 		ix := index.Open(index.File())
-		args = append(args, ix.Paths()...)
+		roots = slices.Collect(ix.Roots().All())
 		ix.Close()
-	}
-
-	// Translate paths to absolute paths so that we can
-	// generate the file list in sorted order.
-	for i, arg := range args {
-		a, err := filepath.Abs(arg)
-		if err != nil {
-			log.Printf("%s: %s", arg, err)
-			args[i] = ""
-			continue
+	} else {
+		for _, arg := range args {
+			a, err := filepath.Abs(arg)
+			if err != nil {
+				log.Printf("%s: %s", arg, err)
+				continue
+			}
+			roots = append(roots, index.MakePath(a))
 		}
-		args[i] = a
-	}
-	sort.Strings(args)
-
-	for len(args) > 0 && args[0] == "" {
-		args = args[1:]
+		slices.SortFunc(roots, index.Path.Compare)
 	}
 
 	master := index.File()
@@ -343,16 +334,24 @@ func main() {
 	file := master
 	if !*resetFlag {
 		file += "~"
+		if *checkFlag {
+			ix := index.Open(master)
+			if err := ix.Check(); err != nil {
+				log.Fatal(err)
+			}
+			ix.Close()
+		}
 	}
 
 	ix := index.Create(file)
 	ix.Verbose = *verboseFlag
+	ix.Zip = *zipFlag
 	ix.LogSkip = *logSkipFlag
 	ix.MaxFileLen = *maxFileLen
 	ix.MaxLineLen = *maxLineLen
 	ix.MaxTextTrigrams = *maxTextTrigrams
 	ix.MaxInvalidUTF8Ratio = *maxInvalidUTF8Ratio
-	ix.AddPaths(args)
+	ix.AddRoots(roots)
 
 	walkChan := make(chan string)
 	doneChan := make(chan bool)
@@ -364,16 +363,18 @@ func main() {
 			case path := <-walkChan:
 				if !seen[path] {
 					seen[path] = true
-					ix.AddFile(path)
+					if err := ix.AddFile(path); err != nil {
+						log.Printf("%s: %s", path, err)
+					}
 				}
 			case <-doneChan:
 				return
 			}
 		}
 	}()
-	for _, arg := range args {
-		log.Printf("index %s", arg)
-		walk(arg, "", walkChan, *logSkipFlag)
+	for _, root := range roots {
+		log.Printf("index %s", root)
+		walk(root.String(), "", walkChan, *logSkipFlag)
 	}
 	doneChan <- true
 	log.Printf("flush index")
@@ -382,11 +383,30 @@ func main() {
 	if !*resetFlag {
 		log.Printf("merge %s %s", master, file)
 		index.Merge(file+"~", master, file)
+		if *checkFlag {
+			ix := index.Open(file + "~")
+			if err := ix.Check(); err != nil {
+				log.Fatal(err)
+			}
+			ix.Close()
+		}
 		os.Remove(file)
-		os.Remove(master)
-		if err := os.Rename(file+"~", master); err != nil {
-			log.Fatalf("failed to merge indexes: %s", err)
+		os.Rename(file+"~", master)
+	} else {
+		if *checkFlag {
+			ix := index.Open(file)
+			if err := ix.Check(); err != nil {
+				log.Fatal(err)
+			}
+			ix.Close()
 		}
 	}
+
 	log.Printf("done")
+
+	if *statsFlag {
+		ix := index.Open(master)
+		ix.PrintStats()
+		ix.Close()
+	}
 }

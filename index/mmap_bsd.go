@@ -32,19 +32,20 @@ func mmapFile(f *os.File) mmapData {
 	}
 	n := int(size)
 	if n == 0 {
-		return mmapData{f, 0, nil, nil}
+		return mmapData{f, nil}
 	}
 	data, err := syscall.Mmap(int(f.Fd()), 0, (n+4095)&^4095, _PROT_READ, _MAP_SHARED)
 	if err != nil {
 		log.Fatalf("mmap %s: %v", f.Name(), err)
 	}
-	return mmapData{f, 0, data[:n], data[:]}
+	return mmapData{f, data[:n]}
 }
 
-func unmmapFile(mm *mmapData) error {
-	if err := syscall.Munmap(mm.dall); err != nil {
-		log.Println("unmmapFile:", err)
-		return err
+func unmmapFile(mm mmapData) {
+	if mm.d == nil {
+		return
 	}
-	return mm.f.Close()
+	if err := syscall.Munmap(mm.d[:cap(mm.d)]); err != nil {
+		log.Fatal("unmmapFile:", err)
+	}
 }

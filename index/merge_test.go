@@ -7,7 +7,6 @@
 package index
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -40,9 +39,9 @@ var mergeFiles2 = map[string]string{
 }
 
 func TestMerge(t *testing.T) {
-	f1, _ := ioutil.TempFile("", "index-test")
-	f2, _ := ioutil.TempFile("", "index-test")
-	f3, _ := ioutil.TempFile("", "index-test")
+	f1, _ := os.CreateTemp("", "index-test")
+	f2, _ := os.CreateTemp("", "index-test")
+	f3, _ := os.CreateTemp("", "index-test")
 	defer os.Remove(f1.Name())
 	defer os.Remove(f2.Name())
 	defer os.Remove(f3.Name())
@@ -74,7 +73,7 @@ func TestMerge(t *testing.T) {
 
 	checkFiles := func(ix *Index, l ...string) {
 		for i, s := range l {
-			if n := ix.Name(uint32(i)); n != s {
+			if n := ix.Name(i).String(); n != s {
 				t.Errorf("%s: Name(%d) = %s, want %s", nameof(ix), i, n, s)
 			}
 		}
@@ -84,7 +83,7 @@ func TestMerge(t *testing.T) {
 	checkFiles(ix2, "/b/www", "/b/xx", "/b/yy", "/cc")
 	checkFiles(ix3, "/a/x", "/a/y", "/b/www", "/b/xx", "/b/yy", "/c/ab", "/c/de", "/cc")
 
-	check := func(ix *Index, trig string, l ...uint32) {
+	check := func(ix *Index, trig string, l ...int) {
 		l1 := ix.PostingList(tri(trig[0], trig[1], trig[2]))
 		if !equalList(l1, l) {
 			t.Errorf("PostingList(%s, %s) = %v, want %v", nameof(ix), trig, l1, l)

@@ -10,7 +10,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -150,7 +149,7 @@ func Main() {
 	}
 
 	ix := index.Open(index.File())
-	var post []uint32
+	var post []int
 	if *bruteFlag {
 		post = ix.PostingQuery(&index.Query{Op: index.QAll})
 	} else {
@@ -161,10 +160,10 @@ func Main() {
 	}
 
 	if fre != nil {
-		fnames := make([]uint32, 0, len(post))
+		fnames := make([]int, 0, len(post))
 
 		for _, fileid := range post {
-			name := ix.Name(fileid)
+			name := ix.Name(fileid).String()
 			if fre.MatchString(name, true, true) < 0 {
 				continue
 			}
@@ -180,7 +179,7 @@ func Main() {
 	g.LimitPrintCount(*maxCount, *maxCountPerFile)
 
 	for _, fileid := range post {
-		name := ix.Name(fileid)
+		name := ix.Name(fileid).String()
 		lock.Lock()
 		seen[name] = true
 		lock.Unlock()
@@ -198,7 +197,7 @@ func Main() {
 			} else {
 				excludePath = *exclude
 			}
-			data, err := ioutil.ReadFile(excludePath)
+			data, err := os.ReadFile(excludePath)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -225,9 +224,9 @@ func Main() {
 				}
 			}
 		}()
-		for _, fpath := range ix.Paths() {
+		for p := range ix.Roots().All() {
 			if !g.Done {
-				walk(ctx, fpath, "", walkChan)
+				walk(ctx, p.String(), "", walkChan)
 			}
 		}
 		doneChan <- true

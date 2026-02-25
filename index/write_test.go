@@ -8,7 +8,6 @@ package index
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -100,12 +99,12 @@ func u32(x uint32) string {
 	return string(buf[:])
 }
 
-func fileList(list ...uint32) string {
+func fileList(list ...int) string {
 	var buf []byte
 
-	last := ^uint32(0)
+	last := -1
 	for _, x := range list {
-		delta := x - last
+		delta := uint32(x - last)
 		for delta >= 0x80 {
 			buf = append(buf, byte(delta)|0x80)
 			delta >>= 7
@@ -127,7 +126,11 @@ func buildFlushIndex(t *testing.T, out string, paths []string, doFlush bool, fil
 	sort.Strings(files)
 	for _, name := range files {
 		r := strings.NewReader(fileData[name])
-		ix.Add(name, r, int64(r.Len()))
+		if err := ix.Add(name, r); err != nil {
+			if t != nil {
+				t.Logf("Add(%q): %v", name, err)
+			}
+		}
 	}
 	if doFlush {
 		ix.flushPost()
@@ -140,14 +143,19 @@ func buildIndex(t *testing.T, name string, paths []string, fileData map[string]s
 }
 
 func testTrivialWrite(t *testing.T, doFlush bool) {
-	f, _ := ioutil.TempFile("", "index-test")
+	// Force v1 index format so we can compare against the known trivialIndex byte string.
+	oldVersion := writeVersion
+	writeVersion = 1
+	defer func() { writeVersion = oldVersion }()
+
+	f, _ := os.CreateTemp("", "index-test")
 	defer os.Remove(f.Name())
 	out := f.Name()
 	buildFlushIndex(t, out, nil, doFlush, trivialFiles)
 
-	data, err := ioutil.ReadFile(out)
+	data, err := os.ReadFile(out)
 	if err != nil {
-		t.Fatalf("reading _test/index.triv: %v", err)
+		t.Fatalf("reading index: %v", err)
 	}
 	want := []byte(trivialIndex)
 	if !bytes.Equal(data, want) {
@@ -180,5 +188,134 @@ func TestHeap(t *testing.T) {
 		if a > b {
 			t.Fatalf("%d should <= %d", a, b)
 		}
+	}
+}
+
+// indexedFiles returns the list of file names stored in the index at path.
+func indexedFiles(t *testing.T, path string) []string {
+	t.Helper()
+	ix := Open(path)
+	defer ix.Close()
+	var names []string
+	for i := 0; i < ix.numName; i++ {
+		names = append(names, ix.Name(i).String())
+	}
+	return names
+}
+
+func TestMaxFileLen(t *testing.T) {
+	f, _ := os.CreateTemp("", "index-test")
+	defer os.Remove(f.Name())
+	out := f.Name()
+
+	ix := Create(out)
+	ix.MaxFileLen = 5
+	ix.Add("short", strings.NewReader("abc"))
+	ix.Add("long", strings.NewReader("abcdefghij"))
+	ix.Flush()
+
+	names := indexedFiles(t, out)
+	if len(names) != 1 || names[0] != "short" {
+		t.Errorf("got indexed files %v, want [short]", names)
+	}
+}
+
+func TestMaxLineLen(t *testing.T) {
+	f, _ := os.CreateTemp("", "index-test")
+	defer os.Remove(f.Name())
+	out := f.Name()
+
+	ix := Create(out)
+	ix.MaxLineLen = 5
+	// short lines — should be indexed
+	ix.Add("ok", strings.NewReader("abc\ndef\n"))
+	// line too long — should be skipped
+	ix.Add("toolong", strings.NewReader("abcdefghij\n"))
+	ix.Flush()
+
+	names := indexedFiles(t, out)
+	if len(names) != 1 || names[0] != "ok" {
+		t.Errorf("got indexed files %v, want [ok]", names)
+	}
+}
+
+func TestMaxTextTrigrams(t *testing.T) {
+	f, _ := os.CreateTemp("", "index-test")
+	defer os.Remove(f.Name())
+	out := f.Name()
+
+	// Build a string with many distinct trigrams.
+	// Each unique 3-byte window is a trigram. Use varied bytes to maximise count.
+	var bigContent strings.Builder
+	for i := 0; i < 100; i++ {
+		bigContent.WriteString("abcdefghijklmnopqrstuvwxyz")
+	}
+	big := bigContent.String()
+
+	ix := Create(out)
+	ix.MaxTextTrigrams = 5 // very low limit
+	ix.Add("small", strings.NewReader("abc"))
+	ix.Add("big", strings.NewReader(big))
+	ix.Flush()
+
+	names := indexedFiles(t, out)
+	if len(names) != 1 || names[0] != "small" {
+		t.Errorf("got indexed files %v, want [small]", names)
+	}
+}
+
+func TestBinaryFileSkipped(t *testing.T) {
+	f, _ := os.CreateTemp("", "index-test")
+	defer os.Remove(f.Name())
+	out := f.Name()
+
+	ix := Create(out)
+	ix.Add("text", strings.NewReader("hello world\n"))
+	// NUL byte makes it binary
+	ix.Add("binary", strings.NewReader("hel\x00lo\n"))
+	ix.Flush()
+
+	names := indexedFiles(t, out)
+	if len(names) != 1 || names[0] != "text" {
+		t.Errorf("got indexed files %v, want [text]", names)
+	}
+}
+
+func TestMaxInvalidUTF8Ratio(t *testing.T) {
+	f, _ := os.CreateTemp("", "index-test")
+	defer os.Remove(f.Name())
+	out := f.Name()
+
+	// Pure ASCII — should always be indexed.
+	ascii := "hello world"
+	// High ratio of invalid UTF-8 — should be skipped when ratio is 0.
+	// \x80 is a bare continuation byte, invalid as a start byte.
+	badUTF8 := "abc\x80\x81\x82\x83xyz"
+
+	ix := Create(out)
+	ix.MaxInvalidUTF8Ratio = 0.0 // zero tolerance
+	ix.Add("ascii", strings.NewReader(ascii))
+	ix.Add("badutf8", strings.NewReader(badUTF8))
+	ix.Flush()
+
+	names := indexedFiles(t, out)
+	if len(names) != 1 || names[0] != "ascii" {
+		t.Errorf("got indexed files %v, want [ascii]", names)
+	}
+
+	// With a generous ratio, the badutf8 file should be indexed too.
+	f2, _ := os.CreateTemp("", "index-test")
+	defer os.Remove(f2.Name())
+	out2 := f2.Name()
+
+	ix2 := Create(out2)
+	ix2.MaxInvalidUTF8Ratio = 1.0 // tolerate all invalid bytes
+	ix2.Add("ascii", strings.NewReader(ascii))
+	ix2.Add("badutf8", strings.NewReader(badUTF8))
+	ix2.Flush()
+
+	names2 := indexedFiles(t, out2)
+	if len(names2) != 2 {
+		t.Errorf("got indexed files %v, want [ascii badutf8]", names2)
 	}
 }
