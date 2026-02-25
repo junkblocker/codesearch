@@ -487,14 +487,21 @@ func (ix *IndexWriter) mergePost(out *Buffer) {
 	e := h.next()
 	for {
 		t := e.trigram()
+		if t == invalidTrigram {
+			if writeVersion == 1 {
+				// v1 uses an explicit sentinel entry to mark end of posting lists.
+				w.trigram(t)
+				w.endTrigram()
+			}
+			// v2 uses numPost from the header; omitting the sentinel prevents
+			// double-0xffffff entries when a merged index is re-merged.
+			break
+		}
 		w.trigram(t)
-		for ; e.trigram() == t && t != invalidTrigram; e = h.next() {
+		for ; e.trigram() == t; e = h.next() {
 			w.fileid(e.fileid())
 		}
 		w.endTrigram()
-		if t == invalidTrigram {
-			break
-		}
 	}
 	w.flush()
 	ix.numTrigram = w.numTrigram

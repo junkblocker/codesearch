@@ -218,11 +218,10 @@ func Merge(dst, src1, src2 string) {
 			r2.nextTrigram()
 			w.endTrigram()
 		} else {
-			w.trigram(r1.trigram)
 			if r1.trigram == ^uint32(0) {
-				w.endTrigram()
 				break
 			}
+			w.trigram(r1.trigram)
 			r1.nextId()
 			r2.nextId()
 			for r1.fileid != -1 || r2.fileid != -1 {
