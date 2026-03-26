@@ -167,6 +167,7 @@ func (r *PathReader) Next() bool {
 	if r.limit > 0 {
 		r.limit--
 	}
+	r.n++
 	if r.version == 1 {
 		i := bytes.IndexByte(r.data, '\x00')
 		if i <= 0 {

@@ -87,6 +87,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 	ix := index.Open(index.File())
+	defer ix.Close()
 	ix.Verbose = *verboseFlag
 	post := ix.PostingQuery(q)
 	if *verboseFlag {
@@ -157,6 +158,10 @@ func home(w http.ResponseWriter, r *http.Request) {
 		}
 		g.Reader(file, name)
 		file.Close()
+	}
+
+	if zipReader != nil {
+		zipReader.Close()
 	}
 
 	fmt.Fprintf(w, "\n%d matches in %.3fs\n", g.Matches, time.Since(start).Seconds())

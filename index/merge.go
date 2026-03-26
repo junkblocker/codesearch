@@ -129,6 +129,8 @@ func Merge(dst, src1, src2 string) {
 	// Merged list of paths.
 	pathData := ix.Offset()
 	last := MakePath("\xFF") // not a prefix of anything
+	savedWriteVersion := writeVersion
+	defer func() { writeVersion = savedWriteVersion }()
 	writeVersion = 2
 	paths := NewPathWriter(ix, nil, writeVersion, 0)
 	p1 := ix1.Roots()

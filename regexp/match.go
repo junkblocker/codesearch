@@ -371,8 +371,8 @@ type Grep struct {
 	Limit   int  // stop after this many matches
 	Limited bool // stopped because of limit
 
-	PreContext  int // number of lines to print after
-	PostContext int // number of lines to print before
+	PreContext  int // number of lines to print before a match
+	PostContext int // number of lines to print after a match
 
 	// junkblocker extensions: per-file and global line-count limits
 	Done                 bool
@@ -442,16 +442,7 @@ func (g *Grep) File(name string) {
 var nl = []byte{'\n'}
 
 func countNL(b []byte) int {
-	n := 0
-	for {
-		i := bytes.IndexByte(b, '\n')
-		if i < 0 {
-			break
-		}
-		n++
-		b = b[i+1:]
-	}
-	return n
+	return bytes.Count(b, nl)
 }
 
 func (g *Grep) Reader(r io.Reader, name string) {
@@ -497,8 +488,13 @@ func (g *Grep) Reader(r io.Reader, name string) {
 			if m1 < chunkStart {
 				break
 			}
-			g.Match = true
-			if g.L {
+		g.Match = true
+		g.Matches++
+		if g.Limit > 0 && g.Matches >= g.Limit {
+			g.Limited = true
+			return
+		}
+		if g.L {
 				fmt.Fprintf(g.Stdout, "%s%c", name, outSep)
 				g.lines_printed++
 				if g.max_print_lines > 0 && g.lines_printed >= g.max_print_lines {

@@ -149,6 +149,7 @@ func Main() {
 	}
 
 	ix := index.Open(index.File())
+	defer ix.Close()
 	var post []int
 	if *bruteFlag {
 		post = ix.PostingQuery(&index.Query{Op: index.QAll})
@@ -192,7 +193,7 @@ func Main() {
 	if *allFilesFlag {
 		if *exclude != "" {
 			var excludePath string
-			if (*exclude)[:2] == "~/" {
+			if len(*exclude) >= 2 && (*exclude)[:2] == "~/" {
 				excludePath = filepath.Join(index.HomeDir(), (*exclude)[2:])
 			} else {
 				excludePath = *exclude
@@ -201,9 +202,11 @@ func Main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			excludePatterns = append(excludePatterns, strings.Split(string(data), "\n")...)
-			for i, pattern := range excludePatterns {
-				excludePatterns[i] = strings.TrimSpace(pattern)
+			for _, pattern := range strings.Split(string(data), "\n") {
+				pattern = strings.TrimSpace(pattern)
+				if pattern != "" {
+					excludePatterns = append(excludePatterns, pattern)
+				}
 			}
 		}
 		walkChan := make(chan string)
@@ -304,16 +307,14 @@ func walk(ctx context.Context, arg string, symlinkFrom string, out chan<- string
 					} else {
 						resolved = symlinkFrom + path[len(arg):]
 					}
-					lock.RLock()
-					if !seen[resolved] {
-						lock.RUnlock()
-						lock.Lock()
-						seen[resolved] = true
-						lock.Unlock()
-						out <- resolved
-					} else {
-						lock.RUnlock()
-					}
+				lock.Lock()
+				if !seen[resolved] {
+					seen[resolved] = true
+					lock.Unlock()
+					out <- resolved
+				} else {
+					lock.Unlock()
+				}
 				}
 			}
 			return nil

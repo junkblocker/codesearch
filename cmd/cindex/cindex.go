@@ -231,6 +231,7 @@ func main() {
 			log.Fatal("Index " + master + " must point to an index file")
 		}
 		ix := index.Open(master)
+		defer ix.Close()
 		if *checkFlag {
 			if err := ix.Check(); err != nil {
 				log.Fatal(err)
@@ -282,9 +283,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		excludePatterns = append(excludePatterns, strings.Split(string(data), "\n")...)
-		for i, pattern := range excludePatterns {
-			excludePatterns[i] = strings.TrimSpace(pattern)
+		for _, pattern := range strings.Split(string(data), "\n") {
+			pattern = strings.TrimSpace(pattern)
+			if pattern != "" {
+				excludePatterns = append(excludePatterns, pattern)
+			}
 		}
 	}
 

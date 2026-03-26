@@ -821,21 +821,12 @@ func validUTF8(c1, c2 uint32) bool {
 // Run two rounds of 12-bit radix sort.
 const sortK = 12
 
-var (
-	sortTmp []postEntry
-	sortN   [1 << sortK]int
-)
-
 func sortPost(post []postEntry) {
-	if len(post) > len(sortTmp) {
-		sortTmp = make([]postEntry, len(post))
-	}
-	tmp := sortTmp[:len(post)]
+	sortTmp := make([]postEntry, len(post))
+	tmp := sortTmp
 
+	var sortN [1 << sortK]int
 	const k = sortK
-	for i := range sortN {
-		sortN[i] = 0
-	}
 	for _, p := range post {
 		r := uintptr(p>>40) & (1<<k - 1)
 		sortN[r]++
