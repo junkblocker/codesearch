@@ -1,5 +1,5 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013-2025 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2011-2026 The Go Authors.  All rights reserved.
+// Copyright 2013-2026 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -328,7 +328,7 @@ func (r *postMapReader) load(force bool) {
 		r.trigram, r.count, r.offset = r.ix.postIndexEntry(r.triNum)
 	} else {
 		b := r.block
-		if b == nil || len(b) < 3 || b[0] == 0 && b[1] == 0 && b[2] == 0 {
+		if len(b) < 3 || b[0] == 0 && b[1] == 0 && b[2] == 0 {
 			r.block = r.ix.slice(r.ix.postIndex+r.nextBlock, postBlockSize)
 			r.nextBlock += postBlockSize
 			b = r.block

@@ -101,9 +101,9 @@ build:
 .PHONY: lint
 lint:
 	@if [ -z "$(command -v golangci-lint)" ]; then \
-		cd / && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2 ; \
+		cd / && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest ; \
 	fi
-	@cd "$(PROJECT_DIR)" && golangci-lint run --disable=unused,deadcode,ineffassign,gosimple,errcheck,structcheck,varcheck,staticcheck
+	@cd "$(PROJECT_DIR)" && golangci-lint run --disable=unused,ineffassign,errcheck,staticcheck
 
 .PHONY: vet
 vet:
